@@ -5,6 +5,8 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 import os
 
+#test
+
 app = Flask(__name__)
 CORS(app)
 
