@@ -1,11 +1,16 @@
-import time
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
-import os
 
-#test
+import os
+import logging
+from datetime import datetime
+
+from ETL.preprocessing import Preprocessor
+from helpers.misc import load_yaml
+from search_engine.indexer import Indexer
+from search_engine.retrieval import execute_queries_and_save_results
 
 app = Flask(__name__)
 CORS(app)
@@ -16,43 +21,56 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
 
-class SongsModel(db.Model):
-    __tablename__ = 'songs'
+# Import the model after the database is initialised
+from models.SongModel import SongModel
 
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String())
-    author = db.Column(db.String())
-    lyrics = db.Column(db.Text())
+# Stop time
+# Full run: 23 seconds
+# Run without creating but only loading index: 0-1 seconds
+dt_string_START = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+logging.warning(f'START date and time = {dt_string_START}')
 
-    def __init__(self, name, lyrics, author):
-        self.name = name
-        self.author = author
-        self.lyrics = lyrics
+# Load config
+config = load_yaml("config/config.yaml")
 
-    def __repr__(self):
-        return f"<Song {self.name}>"
+# Initialize preprocessor instance
+preprocessor = Preprocessor(config)
 
+# Load data
+doc_ids, raw_doc_texts = preprocessor.load_data_from_db(SongModel)
 
-@app.route('/api/time')
-def get_current_time():
-    return jsonify({'time': time.time()})
+# Initiate indexer instance
+indexer = Indexer(config)
 
+# Build index
+indexer.build_index(preprocessor, doc_ids, raw_doc_texts)
 
-@app.route('/api/songs', methods=['POST', 'GET'])
+# Save index
+indexer.store_index()
+
+# Add doc ids as index attribute
+indexer.add_all_doc_ids(doc_ids)
+
+# Load index (for testing)
+indexer.index = indexer.load_index()
+
+@app.route('/api/songs')
 def handle_songs():
-    songs = SongsModel.query.all()
+    """
+    Returns a list of relevant songs
+    :param query: query text (str)
+    :return: results (json)
+    """
+    query = request.args.get('query')
+
+    db_results = execute_queries_and_save_results(query, search_type="boolean", indexer=indexer,
+                                                       preprocessor=preprocessor, config=config)
+    songs = SongModel.query.filter(SongModel.id.in_(db_results)).all()
+    print(songs)
     results = [
         {
             "name": song.name,
             "author": song.author,
             "lyrics": song.lyrics
         } for song in songs]
-
     return {"count": len(results), "songs": results}
-
-@app.route('/api/songs/add')
-def handle_add_songs():
-    new_song = SongsModel(name=request.args.get('name'), author=request.args.get('author'), lyrics=request.args.get('lyrics'))
-    db.session.add(new_song)
-    db.session.commit()
-    return {"message": f"song {new_song.name} has been created successfully."}
