@@ -71,11 +71,14 @@ def handle_songs():
     db_results = execute_queries_and_save_results(query, search_type="boolean", indexer=indexer,
                                                        preprocessor=preprocessor, config=config)
     songs = SongModel.query.filter(SongModel.id.in_(db_results)).all()
-    print(songs)
     results = [
         {
             "name": song.name,
-            "author": song.author,
-            "lyrics": song.lyrics
+            "artist": song.artist,
+            "lyrics": song.lyrics,
+            "album" : song.album,
+            "image" : song.image,
+            "released" : song.released,
+            "genre": song.genre
         } for song in songs]
-    return {"count": len(results), "songs": results}
+    return {"songs": results}
