@@ -15,7 +15,12 @@ from search_engine.retrieval import execute_queries_and_save_results
 app = Flask(__name__)
 CORS(app)
 
-app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'postgresql://postgres:postgres@localhost:5432/test')
+if os.path.isfile(".password") and os.access(".password", os.R_OK):
+    with open(".password", "r") as passfile:
+        app.config['SQLALCHEMY_DATABASE_URI'] = passfile.readline()
+else:
+    app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'postgresql://postgres:postgres@localhost:5432/test')
+
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
