@@ -19,7 +19,7 @@ if os.path.isfile(".password") and os.access(".password", os.R_OK):
     with open(".password", "r") as passfile:
         app.config['SQLALCHEMY_DATABASE_URI'] = passfile.readline()
 else:
-    app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'postgresql://postgres:postgres@localhost:5432/test')
+    app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL')
 
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
@@ -58,6 +58,10 @@ indexer.add_all_doc_ids(doc_ids)
 
 # Load index (for testing)
 indexer.index = indexer.load_index()
+
+@app.route('/')
+def handle_root():
+    return '<h1>The server is working! Try making an api call:</h1><a href=\"/api/songs?query=Never gonna give you up\">/api/songs?query=Never gonna give you up</a>'
 
 @app.route('/api/songs')
 def handle_songs():
