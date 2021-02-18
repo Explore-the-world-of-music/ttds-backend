@@ -332,9 +332,18 @@ def execute_search(query, indexer, preprocessor):
             search_results[term]["rel_docs"], _ = execute_search(term, indexer, preprocessor)
             search_results[term]["rel_doc_pos"] = get_rel_doc_pos(preprocessor.preprocess(term)[0], indexer.index)
 
-        rel_docs, tfs_docs = simple_proximity_search(search_results, indexer=indexer, n=1, phrase=True, pos_asterisk = pos_asterisk)
+        if len(search_results.keys()) < 2:
+            key = list(search_results.keys())[0]
+            final_rel_doc_ids = search_results[key]["rel_docs"]
 
-        return rel_docs, tfs_docs
+            # Convert results to appropriate output format
+            tfs_docs = dict(Counter(final_rel_doc_ids))
+            tfs_docs = defaultdict(int, tfs_docs)
+            final_rel_doc_ids = sorted(list(set(final_rel_doc_ids)))
+            return final_rel_doc_ids, tfs_docs
+        else:
+            rel_docs, tfs_docs = simple_proximity_search(search_results, indexer=indexer, n=1, phrase=True, pos_asterisk = pos_asterisk)
+            return rel_docs, tfs_docs
 
     # if nothing else matches --> make a simple search
     else:
