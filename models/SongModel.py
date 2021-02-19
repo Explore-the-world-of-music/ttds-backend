@@ -1,26 +1,21 @@
 from app import db
 #from sqlalchemy.dialects.postgresql import JSON
+from models.ArtistModel import ArtistModel
+
 
 class SongModel(db.Model):
     __tablename__ = 'songs'
 
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String())
-    artist = db.Column(db.String())
+    artist_id = db.Column(db.Integer(), db.ForeignKey("artists.id"))
     lyrics = db.Column(db.Text())
     album = db.Column(db.String())
-    image = db.Column(db.String())
-    released = db.Column(db.SmallInteger())
+    released = db.Column(db.Integer())
+    rating = db.Column(db.SmallInteger())
     genre = db.Column(db.String())
 
-    def __init__(self, name, lyrics, artist, album, image, released, genre):
-        self.name = name
-        self.artist = artist
-        self.lyrics = lyrics
-        self.album = album
-        self.image = image
-        self.released = released
-        self.genre = genre
+    artist = db.relationship("ArtistModel")
 
     def __repr__(self):
         return f"<Song {self.name}>"
