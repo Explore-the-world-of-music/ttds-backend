@@ -82,9 +82,10 @@ def handle_songs():
 
     results = [
         {
+            "id": song.id,
             "name": song.name,
             "artist": song.artist.name,
-            "lyrics": song.lyrics,
+            "lyrics": song.lyrics.replace("\\n", "\n"),
             "album": song.album,
             "image": song.artist.image,
             "rating": song.rating,
