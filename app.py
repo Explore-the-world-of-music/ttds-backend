@@ -26,8 +26,9 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
 
-# Import the model after the database is initialised
+# Import the models after the database is initialised
 from models.SongModel import SongModel
+from models.ArtistModel import ArtistModel
 
 # Stop time
 # Full run: 23 seconds
@@ -59,9 +60,11 @@ indexer.add_all_doc_ids(doc_ids)
 # Load index (for testing)
 indexer.index = indexer.load_index()
 
+
 @app.route('/')
 def handle_root():
     return '<h1>The server is working! Try making an api call:</h1><a href=\"/api/songs?query=Never gonna give you up\">/api/songs?query=Never gonna give you up</a>'
+
 
 @app.route('/api/songs')
 def handle_songs():
@@ -73,16 +76,19 @@ def handle_songs():
     query = request.args.get('query')
 
     db_results = execute_queries_and_save_results(query, search_type="boolean", indexer=indexer,
-                                                       preprocessor=preprocessor, config=config)
-    songs = SongModel.query.filter(SongModel.id.in_(db_results)).all()
+                                                  preprocessor=preprocessor, config=config)
+    songs = SongModel.query.join(ArtistModel).filter(
+        SongModel.id.in_(db_results)).all()
+
     results = [
         {
             "name": song.name,
-            "artist": song.artist,
+            "artist": song.artist.name,
             "lyrics": song.lyrics,
-            "album" : song.album,
-            "image" : song.image,
-            "released" : song.released,
+            "album": song.album,
+            "image": song.artist.image,
+            "rating": song.rating,
+            "released": song.released,
             "genre": song.genre
         } for song in songs]
     return {"songs": results}
