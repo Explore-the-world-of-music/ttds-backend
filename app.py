@@ -60,8 +60,8 @@ indexer.add_all_doc_ids(doc_ids)
 # Load index (for testing)
 indexer.index = indexer.load_index()
 
-
 @app.route("/")
+
 def handle_root():
     return "<h1>The server is working! Try making an api call:</h1><a href=\"/api/songs?query=Never gonna give you up\">/api/songs?query=Never gonna give you up</a>"
 
