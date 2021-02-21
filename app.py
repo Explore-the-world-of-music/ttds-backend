@@ -88,9 +88,9 @@ def handle_songs():
     db_results = execute_queries_and_save_results(query, search_type="boolean_and_tfidf", indexer=indexer,
                                                   preprocessor=preprocessor, config=config)
 
-    db_results = [result[0] for result in db_results] # only retreiving the results, disregard scores
+    result_dict = {id: score for id, score in db_results} # converting tuples into a dictionary
 
-    query_list = [SongModel.id.in_(db_results)]
+    query_list = [SongModel.id.in_(result_dict.keys())]
     if years !="":
         years = years.split(",")
         query_list.append(SongModel.released.between(int(years[0]), int(years[1])) )
@@ -126,9 +126,12 @@ def handle_songs():
     for song in results:
         song["lyrics"] = song["lyrics"].replace("\\n", "\n")
         split_lyrics = song["lyrics"].split("\n")
-        if "" in split_lyrics and 4<= split_lyrics.index("") <= 10:
+        if "" in split_lyrics and 4 <= split_lyrics.index("") <= 10:
             song["lyrics"] = "\n".join(split_lyrics[:split_lyrics.index("")])
         else:
             song["lyrics"] = "\n".join(split_lyrics[:8])
+
+    # sort results based on their score
+    results.sort(key= lambda x: result_dict[x["id"]], reverse=True)
 
     return {"songs": results}
