@@ -2,4 +2,4 @@ preprocessing:
   use_stemming: False
   remove_stop_words: False
 retrieval:
-  number_ranked_documents: 150
+  number_ranked_documents: 10
