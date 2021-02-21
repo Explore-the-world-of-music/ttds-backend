@@ -63,7 +63,7 @@ indexer.index = indexer.load_index()
 @app.route("/")
 
 def handle_root():
-    return "<h1>The server is working! Try making an api call:</h1><a href=\"/api/songs?query=Never gonna give you up\">/api/songs?query=Never gonna give you up</a>"
+    return "<h1>The server is working! Try making an api call:</h1><a href=\"/api/songs/search?query=Never gonna give you up\">/api/songs/search?query=Never gonna give you up</a>"
 
 @app.route("/api/songs/get_genres")
 def handle_genres():
