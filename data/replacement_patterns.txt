@@ -1,0 +1,34 @@
+its,it is
+it's,it is
+ain't,is not
+you're,your are
+that's,that is
+I'm,i am
+he's,he is
+there's,there is
+'re, are
+let's,let us
+'d, would
+\.,.
+here's,here is
+what's,what is
+some's,someones
+every's,everyones
+any's,anyones
+s'thing,something
+might'have,might have
+who's,who is
+is't,is it
+did't,did not
+gonna,going to
+lemme,let me
+kinda,kind of
+dunno,do not know
+gotta,got
+whatcha,what are you
+ya,you
+doin',doing
+'ve, have
+n't, not
+'nt, not
+'ll, will
