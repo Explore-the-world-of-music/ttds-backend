@@ -369,7 +369,10 @@ def execute_queries_and_save_results(query, search_type, indexer, preprocessor, 
 
     if search_type == "boolean_and_tfidf": # Todo: Take if clause out once not needed anymore for testing
         if preprocessor.replacement_patterns:
+            print("0")
+            print(query)
             query = preprocessor.replace_replacement_patterns(query)
+            print("1")
             print(query)
 
         # Execute search for boolean queries considering ranking
@@ -413,5 +416,5 @@ def execute_queries_and_save_results(query, search_type, indexer, preprocessor, 
             # Write output (only document ids), implementation efficient as maximal number of results 10-100
             results = []
             for doc_id, value in rel_docs_with_tfidf_scaled:
-                results.append(doc_id)
+                results.append((doc_id,round(value, 4)))
             return results
