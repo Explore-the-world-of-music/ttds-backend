@@ -4,4 +4,4 @@ preprocessing:
   use_replacement_patterns: True
 retrieval:
   number_ranked_documents: 10
-  result_checking: True
+  result_checking: False
