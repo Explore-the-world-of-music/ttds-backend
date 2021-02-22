@@ -88,6 +88,9 @@ def handle_songs():
     db_results = execute_queries_and_save_results(query, search_type="boolean_and_tfidf", indexer=indexer,
                                                   preprocessor=preprocessor, config=config)
 
+    if db_results == None:
+        return {"songs": []}
+
     result_dict = {id: score for id, score in db_results} # converting tuples into a dictionary
 
     query_list = [SongModel.id.in_(result_dict.keys())]
