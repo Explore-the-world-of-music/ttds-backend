@@ -1,5 +1,7 @@
 preprocessing:
-  use_stemming: False
+  use_stemming: True
   remove_stop_words: False
+  use_replacement_patterns: True
 retrieval:
-  number_ranked_documents: 150
+  number_ranked_documents: 10
+  result_checking: False

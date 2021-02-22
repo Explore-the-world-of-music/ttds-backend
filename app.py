@@ -75,7 +75,7 @@ def handle_songs():
     """
     query = request.args.get('query')
 
-    db_results = execute_queries_and_save_results(query, search_type="boolean", indexer=indexer,
+    db_results = execute_queries_and_save_results(query, search_type="boolean_and_tfidf", indexer=indexer,
                                                   preprocessor=preprocessor, config=config)
     songs = SongModel.query.join(ArtistModel).filter(
         SongModel.id.in_(db_results)).all()

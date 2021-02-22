@@ -29,6 +29,10 @@ class Indexer:
 
         # Create dictionary entry for each token and doc id
         for doc_id, raw_line in zip(doc_ids, raw_doc_texts):
+
+            if preprocessor.replacement_patterns:
+                raw_line = preprocessor.replace_replacement_patterns(raw_line)
+
             line = preprocessor.preprocess(raw_line)
             for pos, token in enumerate(line):
                 index[token][doc_id].append(pos)
@@ -47,13 +51,13 @@ class Indexer:
         if as_pickle:
             with open('index.pickle', 'wb') as file:
                 pickle.dump(self.index, file, protocol=pickle.HIGHEST_PROTOCOL)
-        else:
-            with open("index.txt", "w") as text_output:
-                for term in sorted(self.index.keys()):
-                    text_output.write(f"{term}:{len(self.index[term])}\n")
-                    for doc in self.index[term]:
-                        items = str(self.index[term][doc])[1:-1].replace(" ", "")
-                        text_output.write(f"\t{doc}: {items}\n")
+        # else: # Todo: Store always txt index as well for testing, reinstate else clause at some point
+        with open("index.txt", "w") as text_output:
+            for term in sorted(self.index.keys()):
+                text_output.write(f"{term}:{len(self.index[term])}\n")
+                for doc in self.index[term]:
+                    items = str(self.index[term][doc])[1:-1].replace(" ", "")
+                    text_output.write(f"\t{doc}: {items}\n")
 
     def load_index(self, as_pickle=True):
         """

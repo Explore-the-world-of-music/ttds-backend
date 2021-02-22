@@ -6,6 +6,9 @@ import re
 from helpers.misc import create_default_dict_list
 import numpy as np
 from operator import itemgetter
+import time
+import datetime
+import csv
 
 
 def find_docs_with_term(term, index):
@@ -361,38 +364,19 @@ def execute_queries_and_save_results(query, search_type, indexer, preprocessor, 
     :param indexer: Class instance for the created index (Indexer)
     :param preprocessor: Preprocessor class instance (Preprocessor)
     :param config: Defined configuration settings (dict)
-    :return: results (str)
+    :return: results (list)
     """
-    # Initiate result string
-    results = ""
 
-    # Todo: Take out boolean search type
-    # Execute search for boolean queries
-    if search_type == "boolean":
-        rel_docs, _ = execute_search(query, indexer, preprocessor)
-        return rel_docs
+    if search_type == "boolean_and_tfidf": # Todo: Take if clause out once not needed anymore for testing
+        if preprocessor.replacement_patterns:
+            query = preprocessor.replace_replacement_patterns(query)
+            print(query)
 
-    # Todo: Take out boolean tfidf type
-    # Execute search for ranked queries
-    if search_type == "tfidf":
-        terms = query.split()
-        terms = [preprocessor.preprocess(term)[0] for term in terms if len(preprocessor.preprocess(term)) > 0]
-        rel_docs = simple_tfidf_search(terms, indexer)
-
-        if len(rel_docs) > 0:
-            if len(rel_docs) > config["retrieval"]["number_ranked_documents"]:
-                rel_docs = rel_docs[:config["retrieval"]["number_ranked_documents"]]
-            results = []
-            for doc_id, value in rel_docs:
-                results.append((doc_id,round(value, 4)))
-            return results
-
-    if search_type == "boolean_and_tfidf":
         # Execute search for boolean queries considering ranking
-        # boolean_search_pattern = re.compile('(\sAND NOT\s)|(\sOR NOT\s)|(\sAND\s)|(\sOR\s)|(#\d+)|^".*"$')
         boolean_search_pattern = re.compile('(\s&&--\s)|(\s\|\|--\s)|(\s&&\s)|(\s\|\|\s)|(#\d+)|^".*"$')
 
-        # check if boolean search component is in query
+        # check if boolean search component is in query, then execute boolean search
+        # else execute tfidf search
         if boolean_search_pattern.search(query) is not None:
             rel_docs, tfs_docs = execute_search(query, indexer, preprocessor)
             rel_docs_with_tfidf = calculate_tfidf(rel_docs, tfs_docs, indexer)
@@ -406,15 +390,28 @@ def execute_queries_and_save_results(query, search_type, indexer, preprocessor, 
             if len(rel_docs_with_tfidf) > config["retrieval"]["number_ranked_documents"]:
                 rel_docs_with_tfidf = rel_docs_with_tfidf[:config["retrieval"]["number_ranked_documents"]]
 
-            # Rescale the results. For queries with "OR NOT" it can happen that the difference in scores between the
-            # documents are very low (0.0001). To interpret results easier we re-scale here based on the highest score
-            max_value = max(rel_docs_with_tfidf, key=itemgetter(1))[1]
-            rel_docs_with_tfidf_scaled = list()
-            for idx, _ in enumerate(rel_docs_with_tfidf):
-                rel_docs_with_tfidf_scaled.append((rel_docs_with_tfidf[idx][0], rel_docs_with_tfidf[idx][1] / max_value * 10))
+            if config["retrieval"]["result_checking"]:
+                # Rescale the results. For queries with "OR NOT" it can happen that the difference in scores between the
+                # documents are very low (0.0001). To interpret results easier we re-scale here based on the highest score
+                max_value = max(rel_docs_with_tfidf, key=itemgetter(1))[1]
+                rel_docs_with_tfidf_scaled = list()
+                for idx, _ in enumerate(rel_docs_with_tfidf):
+                    rel_docs_with_tfidf_scaled.append((rel_docs_with_tfidf[idx][0], rel_docs_with_tfidf[idx][1] / max_value * 10))
 
-            # Write output
+                # Save results on local disk
+                ts = time.time()
+                st = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d_%H_%M_%S')
+
+                with open(st + "_search_results.csv", 'w', newline="") as out:
+                    csv_out = csv.writer(out)
+                    csv_out.writerow(['doc_id', 'score'])
+                    csv_out.writerows(rel_docs_with_tfidf_scaled)
+
+            else:
+                rel_docs_with_tfidf_scaled = rel_docs_with_tfidf
+
+            # Write output (only document ids), implementation efficient as maximal number of results 10-100
             results = []
             for doc_id, value in rel_docs_with_tfidf_scaled:
-                results.append((doc_id,round(value, 4)))
+                results.append(doc_id)
             return results
