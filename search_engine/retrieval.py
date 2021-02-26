@@ -369,11 +369,7 @@ def execute_queries_and_save_results(query, search_type, indexer, preprocessor, 
 
     if search_type == "boolean_and_tfidf": # Todo: Take if clause out once not needed anymore for testing
         if preprocessor.replacement_patterns:
-            print("0")
-            print(query)
             query = preprocessor.replace_replacement_patterns(query)
-            print("1")
-            print(query)
 
         # Execute search for boolean queries considering ranking
         boolean_search_pattern = re.compile('(\s&&--\s)|(\s\|\|--\s)|(\s&&\s)|(\s\|\|\s)|(#\d+)|^".*"$')

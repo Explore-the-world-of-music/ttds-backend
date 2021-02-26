@@ -68,6 +68,10 @@ class Preprocessor():
         :param line: Raw input line (str)
         :return: Preprocessed line (str)
         """
+        # Replace \\n by \n which we need for the data loading
+        line = line.replace("\\n", "\n")
+
+        # Tokenize, remove stop words and perform stemming
         tokenized = re.findall("[\w]+", line)
         line = [x.lower() for x in tokenized if x != ""]
         if self.stopping:

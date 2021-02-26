@@ -85,9 +85,6 @@ def handle_songs():
     artists = request.args.get("artists", "")
     genres = request.args.get("genres", "")
 
-    print("2")
-    print(query)
-
     db_results = execute_queries_and_save_results(query, search_type="boolean_and_tfidf", indexer=indexer,
                                                   preprocessor=preprocessor, config=config)
 
@@ -132,10 +129,11 @@ def handle_songs():
     for song in results:
         song["lyrics"] = song["lyrics"].replace("\\n", "\n")
         split_lyrics = song["lyrics"].split("\n")
-        if "" in split_lyrics and 4 <= split_lyrics.index("") <= 10:
-            song["lyrics"] = "\n".join(split_lyrics[:split_lyrics.index("")])
-        else:
-            song["lyrics"] = "\n".join(split_lyrics[:8])
+        if not config["retrieval"]["result_checking"]:
+            if "" in split_lyrics and 4 <= split_lyrics.index("") <= 10:
+                song["lyrics"] = "\n".join(split_lyrics[:split_lyrics.index("")])
+            else:
+                song["lyrics"] = "\n".join(split_lyrics[:8])
 
     # sort results based on their score
     results.sort(key= lambda x: result_dict[x["id"]], reverse=True)
