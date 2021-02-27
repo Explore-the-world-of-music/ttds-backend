@@ -266,7 +266,7 @@ def execute_search(query, indexer, preprocessor):
     :return: List from the matching function containing all relevant doc_ids, List of all tfs for relevant doc_ids
     """
     # compile search patterns to test for
-    bool_pattern = re.compile(r"(\s&&--\s)|(\s\|\|--\s)|(\s&&\s)|(\s\|\|\s)")
+    bool_pattern = re.compile(r"(&&--)|(\|\|--)|(&&)|(\|\|)")
     prox_pattern = re.compile(r"#\d+")
     phra_pattern = re.compile(r'^".*"$')
 
@@ -368,11 +368,12 @@ def execute_queries_and_save_results(query, search_type, indexer, preprocessor, 
     """
 
     if search_type == "boolean_and_tfidf": # Todo: Take if clause out once not needed anymore for testing
+
         if preprocessor.replacement_patterns:
             query = preprocessor.replace_replacement_patterns(query)
 
         # Execute search for boolean queries considering ranking
-        boolean_search_pattern = re.compile('(\s&&--\s)|(\s\|\|--\s)|(\s&&\s)|(\s\|\|\s)|(#\d+)|^".*"$')
+        boolean_search_pattern = re.compile('(&&--)|(\|\|--)|(&&)|(\|\|)|(#\d+)|^".*"$')
 
         # check if boolean search component is in query, then execute boolean search
         # else execute tfidf search
