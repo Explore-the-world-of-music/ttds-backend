@@ -373,7 +373,7 @@ def execute_queries_and_save_results(query, search_type, indexer, preprocessor, 
             query = preprocessor.replace_replacement_patterns(query)
 
         # Execute search for boolean queries considering ranking
-        boolean_search_pattern = re.compile('(&&--)|(\|\|--)|(&&)|(\|\|)|(#\d+)|^".*"$')
+        boolean_search_pattern = re.compile(r'(&&--)|(\|\|--)|(&&)|(\|\|)|(#\d+)|^".*"$')
 
         # check if boolean search component is in query, then execute boolean search
         # else execute tfidf search
