@@ -72,8 +72,8 @@ class Preprocessor():
         line = line.replace("\\n", "\n")
 
         # Tokenize, remove stop words and perform stemming
-        tokenized = re.findall("[\w]+", line)
-        line = [x.lower() for x in tokenized if x != ""]
+        tokenized = re.findall("[\w]+", line.lower())
+        line = [x for x in tokenized if x != ""]
         if self.stopping:
             line = [x for x in line if x not in self.stop_set]
         if self.stemming:
