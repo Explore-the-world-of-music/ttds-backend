@@ -44,21 +44,27 @@ preprocessor = Preprocessor(config)
 
 # Load data
 doc_ids, raw_doc_texts = preprocessor.load_data_from_db(SongModel)
+doc_ids_art, raw_doc_texts_art = preprocessor.load_data_from_db_art(ArtistModel)
 
 # Initiate indexer instance
 indexer = Indexer(config)
+indexer_art = Indexer(config)
 
 # Build index
 indexer.build_index(preprocessor, doc_ids, raw_doc_texts)
+indexer_art.build_index(preprocessor, doc_ids_art, raw_doc_texts_art)
 
 # Save index
 indexer.store_index()
+indexer_art.store_index()
 
 # Add doc ids as index attribute
 indexer.add_all_doc_ids(doc_ids)
+indexer_art.add_all_doc_ids(doc_ids_art)
 
 # Load index (for testing)
 indexer.index = indexer.load_index()
+indexer_art.index = indexer_art.load_index()
 
 @app.route("/")
 
@@ -85,6 +91,9 @@ def handle_songs():
     artists = request.args.get("artists", "")
     genres = request.args.get("genres", "")
 
+    print("2")
+    print(query)
+
     db_results = execute_queries_and_save_results(query, search_type="boolean_and_tfidf", indexer=indexer,
                                                   preprocessor=preprocessor, config=config)
 
@@ -94,6 +103,8 @@ def handle_songs():
     result_dict = {id: score for id, score in db_results} # converting tuples into a dictionary
 
     query_list = [SongModel.id.in_(result_dict.keys())]
+    print(query_list)
+    print("star query ", *query_list)
     if years !="":
         years = years.split(",")
         query_list.append(SongModel.released.between(int(years[0]), int(years[1])) )
@@ -105,7 +116,8 @@ def handle_songs():
     if genres != "":
         genres = genres.split(",")
         query_list.append(SongModel.genre._in(genres))
-    
+    print("Query List:", query_list)
+    print("STAR query:", *query_list)
     songs = SongModel.query.join(ArtistModel).filter(*query_list).all()
 
     results = [
@@ -120,7 +132,7 @@ def handle_songs():
             "released": song.released,
             "genre": song.genre
         } for song in songs]
-
+    print(results)
     # Extra preporcessing before lyrics are returned:
     # 1. Replace all \\n with \n
     # 2. If there is a split between 4 and 10 lines, use that
@@ -129,13 +141,40 @@ def handle_songs():
     for song in results:
         song["lyrics"] = song["lyrics"].replace("\\n", "\n")
         split_lyrics = song["lyrics"].split("\n")
-        if not config["retrieval"]["result_checking"]:
-            if "" in split_lyrics and 4 <= split_lyrics.index("") <= 10:
-                song["lyrics"] = "\n".join(split_lyrics[:split_lyrics.index("")])
-            else:
-                song["lyrics"] = "\n".join(split_lyrics[:8])
+        if "" in split_lyrics and 4 <= split_lyrics.index("") <= 10:
+            song["lyrics"] = "\n".join(split_lyrics[:split_lyrics.index("")])
+        else:
+            song["lyrics"] = "\n".join(split_lyrics[:8])
 
     # sort results based on their score
     results.sort(key= lambda x: result_dict[x["id"]], reverse=True)
 
     return {"songs": results}
+
+@app.route('/api/artist/get_artist')
+# http://127.0.0.1:5000/api/artist/get_artist?query=enslav
+def handle_artists():
+    """
+    Returns a list of suggested/relevant artist names 
+    INPUT: query/request
+    OUTPUT: results (JSON response)
+    """
+    query = request.args.get('query')
+    print(query)
+    db_results = execute_queries_and_save_results(query, search_type="boolean_and_tfidf", indexer=indexer_art,
+                                                       preprocessor=preprocessor, config=config)
+    # print("check", db_results)
+
+    result_dict = {id: score for id, score in db_results}
+    query_list = [ArtistModel.id.in_(result_dict.keys())]
+    
+    artists = ArtistModel.query.filter(*query_list).all()
+    print(artists)
+    results = [
+        {
+            "id": art.id,
+            "artist": art.name,
+            "rating": art.rating,
+            "image": art.image
+        } for art in artists]
+    return {"artists": results}
