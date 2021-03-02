@@ -49,6 +49,14 @@ class Preprocessor():
             raw_lyrics.append(song.lyrics)
         return song_ids, raw_lyrics
 
+    def load_data_from_db_art(self, model):
+        art_ids =[]
+        artist_names = [] 
+        for art in model.query.all():
+            art_ids.append(art.id)
+            artist_names.append(art.name)
+        return art_ids, artist_names
+
     def replace_replacement_patterns(self, line):
         """
         Function to replace the patterns given by an defined replacement, e.g. it's to it is
@@ -68,10 +76,6 @@ class Preprocessor():
         :param line: Raw input line (str)
         :return: Preprocessed line (str)
         """
-        # Replace \\n by \n which we need for the data loading
-        line = line.replace("\\n", "\n")
-
-        # Tokenize, remove stop words and perform stemming
         tokenized = re.findall("[\w]+", line)
         line = [x.lower() for x in tokenized if x != ""]
         if self.stopping:
