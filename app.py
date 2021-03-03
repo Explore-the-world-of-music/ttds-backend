@@ -138,3 +138,21 @@ def handle_songs():
     results.sort(key= lambda x: result_dict[x["id"]], reverse=True)
 
     return {"songs": results}
+
+# http://127.0.0.1:5000/api/artist/get_artist?query=enslav
+@app.route('/api/artist/get_artist')
+def handle_artists():
+    """
+    Returns a list of suggested/relevant artist names 
+    :param artist name (str)
+    :return results (json)
+    """
+    query = request.args.get('query').lower()
+    
+    artists = ArtistModel.query.all()
+    results = [
+        {
+            "id": artist.id,
+            "artist": artist.name,
+        } for artist in artists if query in artist.name.lower()]
+    return {"artists": results}
