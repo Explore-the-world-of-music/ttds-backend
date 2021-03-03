@@ -13,3 +13,4 @@ __pycache__/
 *.tsv
 *.pyc
 *.password
+*.pickle

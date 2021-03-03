@@ -8,6 +8,8 @@ import logging
 from datetime import datetime
 
 from ETL.preprocessing import Preprocessor
+from features.ngram_model import Query_Completer
+from features.word_completion import Word_Completer
 from helpers.misc import load_yaml
 from search_engine.indexer import Indexer
 from search_engine.retrieval import execute_queries_and_save_results
@@ -60,8 +62,12 @@ indexer.add_all_doc_ids(doc_ids)
 # Load index (for testing)
 indexer.index = indexer.load_index()
 
-@app.route("/")
+qc = Query_Completer(n = 3)
+qc.load_model("./features/qc_model.pkl", "./features/qc_map_to_int.pkl",  "./features/qc_map_to_token.pkl")
+wc = Word_Completer()
+qc.load_model("./features/wc_model.pkl")
 
+@app.route("/")
 def handle_root():
     return "<h1>The server is working! Try making an api call:</h1><a href=\"/api/songs/search?query=Never gonna give you up\">/api/songs/search?query=Never gonna give you up</a>"
 
@@ -139,8 +145,8 @@ def handle_songs():
 
     return {"songs": results}
 
-# http://127.0.0.1:5000/api/artist/get_artist?query=enslav
-@app.route('/api/artist/get_artist')
+# http://127.0.0.1:5000/api/artists/get_artist?query=enslav
+@app.route('/api/artists/get_artist')
 def handle_artists():
     """
     Returns a list of suggested/relevant artist names 
@@ -156,3 +162,21 @@ def handle_artists():
             "artist": artist.name,
         } for artist in artists if query in artist.name.lower()]
     return {"artists": results}
+
+@app.route('/api/songs/query_autocomplete')
+def handle_autocomplete():
+    """
+    Returns a list of suggested queries
+    :param query (str)
+    :return results (json)
+    """
+
+    query = request.args.get('query')
+
+    # if ends with a space predict the next word, otherwise predict the rest of the current word
+    if query[-1] == " ":
+        results = qc.predict_next_token(query[:-1])
+    else:
+        results = wc.predict_token(query)
+
+    return {"suggestions": results}
