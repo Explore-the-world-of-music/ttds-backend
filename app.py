@@ -3,8 +3,10 @@ from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 
+
 import os
 import logging
+import sys
 from datetime import datetime
 
 from ETL.preprocessing import Preprocessor
@@ -61,11 +63,11 @@ indexer.add_all_doc_ids(doc_ids)
 
 # Load index (for testing)
 indexer.index = indexer.load_index()
+qc = Query_Completer(n = 3)
+qc.load_model("./features/qc_model.pkl", "./features/qc_map_to_int.pkl",  "./features/qc_map_to_token.pkl")
 
-#qc = Query_Completer(n = 3)
-#qc.load_model("./features/qc_model.pkl", "./features/qc_map_to_int.pkl",  "./features/qc_map_to_token.pkl")
-#wc = Word_Completer()
-#wc.load_model("./features/wc_model.pkl")
+wc = Word_Completer()
+wc.load_model("./features/wc_model.pkl")
 
 @app.route("/")
 def handle_root():
@@ -162,7 +164,7 @@ def handle_artists():
             "id": artist.id,
             "artist": artist.name,
         } for artist in artists if query in artist.name.lower()]
-    return {"artists": results}
+    return {"results": results}
 
 @app.route('/api/songs/query_autocomplete')
 def handle_autocomplete():
@@ -176,8 +178,10 @@ def handle_autocomplete():
 
     # if ends with a space predict the next word, otherwise predict the rest of the current word
     if query[-1] == " ":
+        print("!", query[:-1], "!")
         results = qc.predict_next_token(query[:-1])
     else:
         results = wc.predict_token(query, 5)
-
+    if results == None:
+        results = []
     return {"suggestions": results}
