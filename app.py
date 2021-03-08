@@ -47,13 +47,13 @@ config = load_yaml("config/config.yaml")
 preprocessor = Preprocessor(config)
 
 # Load data
-doc_ids, raw_doc_texts = preprocessor.load_data_from_db(SongModel)
+doc_ids, raw_doc_data = preprocessor.load_data_from_db(SongModel, ArtistModel)
 
 # Initiate indexer instance
 indexer = Indexer(config)
 
 # Build index
-indexer.build_index(preprocessor, doc_ids, raw_doc_texts)
+indexer.build_index(preprocessor, doc_ids, raw_doc_data)
 
 # Save index
 indexer.store_index()
