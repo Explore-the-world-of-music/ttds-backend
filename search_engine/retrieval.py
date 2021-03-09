@@ -146,7 +146,6 @@ def simple_proximity_search(search_results, indexer, n=1, pos_asterisk=None, phr
     terms = list(search_results.keys())
     rel_documents_all_terms = bool_search(search_results, indexer=indexer, bool_vals=["&&"] * (len(terms) - 1))
 
-    # Todo: Think about if proximity search considers the max distance between first and last
     # if any(|pos_1 - pos_2|<= n) --> doc_id is relevant --> append it to returned final_rel_doc_ids list
     # Find potential candidates (differentiation important for multiple words in phrase/proximity search)
     final_rel_doc_ids = list()
@@ -384,7 +383,7 @@ def execute_search(query, indexer, preprocessor):
         return results, tfs_docs
 
 
-def execute_queries_and_save_results(query, search_type, indexer, preprocessor, config):
+def execute_queries_and_save_results(query, search_type, indexer, preprocessor, config, SongModel):
     """
     Function to execute search and return results
     :param query: Query that should be searched (str)
@@ -392,6 +391,7 @@ def execute_queries_and_save_results(query, search_type, indexer, preprocessor, 
     :param indexer: Class instance for the created index (Indexer)
     :param preprocessor: Preprocessor class instance (Preprocessor)
     :param config: Defined configuration settings (dict)
+    :param SongModel: Class instance for the database connection (SongModel)
     :return: results (list)
     """
 
@@ -418,18 +418,45 @@ def execute_queries_and_save_results(query, search_type, indexer, preprocessor, 
         rel_docs_with_tfidf = simple_tfidf_search(terms, indexer)
 
     if len(rel_docs_with_tfidf) > 0:
+
+        # Rescale the results. For queries with "OR NOT" it can happen that the difference in scores between the
+        # documents are very low (0.0001). To interpret results easier we re-scale here based on the highest score
+        max_value = max(rel_docs_with_tfidf, key=itemgetter(1))[1]
+        rel_docs_with_tfidf_scaled = list()
+        for idx, _ in enumerate(rel_docs_with_tfidf):
+            rel_docs_with_tfidf_scaled.append(
+                (rel_docs_with_tfidf[idx][0], rel_docs_with_tfidf[idx][1] / max_value * 10))
+
+        if config["retrieval"]["customized_ranking"]:
+
+            # Get popularity scores for rel_dc
+            rel_docs = [x[0] for x in rel_docs_with_tfidf_scaled]
+            pop_score = preprocessor.ret_popScore_list(SongModel, rel_docs, config)
+            if np.isnan(pop_score).sum() > 0:
+                print("WARNING: NA VALUES IN POPULARITY SCORE")
+
+            # Get weighted average of popularity score and tfidf score
+            rel_docs_score = [x[1] for x in rel_docs_with_tfidf_scaled]
+            rel_docs_score_cust = [x * config["retrieval"]["weight_popularity_score"] + round(y,4) * (1-config["retrieval"]["weight_popularity_score"])
+                                   for x, y in zip(pop_score, rel_docs_score)]
+
+            # Overwrite old tfids scores with new scores
+            rel_docs_with_tfidf_scaled = [(x, y) for x, y in zip(rel_docs, rel_docs_score_cust)]
+            rel_docs_with_tfidf_scaled.sort(key = lambda x: x[1], reverse=True)
+
+            if config["retrieval"]["result_checking"]:
+                print("--------------------------------------------")
+                print(f'The relevant documents are {rel_docs}')
+                print(f'The pop score is {pop_score}')
+                print(f'The tfids score is {rel_docs_score}')
+                print(f'The new score is {rel_docs_with_tfidf_scaled}')
+                print("--------------------------------------------")
+
         # Only keep top results
-        if len(rel_docs_with_tfidf) > config["retrieval"]["number_ranked_documents"]:
-            rel_docs_with_tfidf = rel_docs_with_tfidf[:config["retrieval"]["number_ranked_documents"]]
+        if len(rel_docs_with_tfidf_scaled) > config["retrieval"]["number_ranked_documents"]:
+            rel_docs_with_tfidf_scaled = rel_docs_with_tfidf_scaled[:config["retrieval"]["number_ranked_documents"]]
 
         if config["retrieval"]["result_checking"]:
-            # Rescale the results. For queries with "OR NOT" it can happen that the difference in scores between the
-            # documents are very low (0.0001). To interpret results easier we re-scale here based on the highest score
-            max_value = max(rel_docs_with_tfidf, key=itemgetter(1))[1]
-            rel_docs_with_tfidf_scaled = list()
-            for idx, _ in enumerate(rel_docs_with_tfidf):
-                rel_docs_with_tfidf_scaled.append((rel_docs_with_tfidf[idx][0], rel_docs_with_tfidf[idx][1] / max_value * 10))
-
             # Save results on local disk
             ts = time.time()
             st = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d_%H_%M_%S')
@@ -438,9 +465,6 @@ def execute_queries_and_save_results(query, search_type, indexer, preprocessor, 
                 csv_out = csv.writer(out)
                 csv_out.writerow(['doc_id', 'score'])
                 csv_out.writerows(rel_docs_with_tfidf_scaled)
-
-        else:
-            rel_docs_with_tfidf_scaled = rel_docs_with_tfidf
 
         # Write output (only document ids), implementation efficient as maximal number of results 10-100
         results = []

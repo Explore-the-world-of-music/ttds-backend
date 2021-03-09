@@ -28,19 +28,6 @@ class Preprocessor():
         with open("data/replacement_patterns.txt", "r") as patterns:
             self.list_replacement_patterns = [tuple(pattern.rstrip().split(",")) for pattern in patterns]
 
-    # Todo: Take out and replace by database (that is why it is implemented that inefficient)
-    def load_data(self, file_path):
-        with open(file_path, mode='rt', encoding='utf-8') as f:
-            xml_root = ET.fromstring(f.read())
-            num_docs = len(xml_root)
-            doc_ids = [None] * num_docs
-            raw_doc_texts = [None] * num_docs
-
-            for idx, doc in enumerate(xml_root):
-                doc_ids[idx] = int(doc.findtext('DOCNO'))
-                raw_doc_texts[idx] = doc.findtext('HEADLINE') + doc.findtext('TEXT')
-        return doc_ids, raw_doc_texts
-
     def load_data_from_db(self, song_model, artist_model):
         song_ids =[]
         data = []
@@ -61,6 +48,25 @@ class Preprocessor():
             data.append(song_data)
 
         return song_ids, data
+
+    def ret_popScore_list(self, SongModel, song_ids, config):
+        """
+        INPUT: List of Song IDs
+        OUTPUT: Return a list of Popularity scores (rating) for that song
+        """
+        pop_list = []
+
+        for song in song_ids:
+            pop_score = SongModel.query.filter(SongModel.id == song).all()
+            pop_list.append(pop_score[0].rating)
+
+            if config["retrieval"]["result_checking"]:
+                print(f'THe song id is {song}')
+                print(f'THe song name is: {pop_score[0].name}')
+                print(f' The popularity score is: {pop_score[0].rating}')
+                print("---------------------------------------------")
+
+        return pop_list
 
     def replace_replacement_patterns(self, line):
         """

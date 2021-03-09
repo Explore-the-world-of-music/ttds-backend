@@ -94,7 +94,7 @@ def handle_songs():
     genres = request.args.get("genres", "")
 
     db_results = execute_queries_and_save_results(query, search_type="boolean_and_tfidf", indexer=indexer,
-                                                  preprocessor=preprocessor, config=config)
+                                                  preprocessor=preprocessor, config=config, SongModel=SongModel)
 
     if db_results == None:
         return {"songs": []}
