@@ -41,13 +41,26 @@ class Preprocessor():
                 raw_doc_texts[idx] = doc.findtext('HEADLINE') + doc.findtext('TEXT')
         return doc_ids, raw_doc_texts
 
-    def load_data_from_db(self, model):
+    def load_data_from_db(self, song_model, artist_model):
         song_ids =[]
-        raw_lyrics = [] 
-        for song in model.query.all():
+        data = []
+        for song in song_model.query.join(artist_model).all():
             song_ids.append(song.id)
-            raw_lyrics.append(song.lyrics)
-        return song_ids, raw_lyrics
+
+            song_data = ""
+            if song.artist.name is not None:
+                song_data = song_data + " " + song.artist.name  # Add artist name
+            if song.name is not None:
+                song_data = song_data + " " + song.name  # Add song name
+            if song.album is not None:
+                song_data = song_data + " " + song.album  # Add song album
+            if song.genre is not None:
+                song_data = song_data + " " + song.genre  # Add song genre
+            song_data = song_data + " " + song.lyrics  # Add song lyrics
+
+            data.append(song_data)
+
+        return song_ids, data
 
     def replace_replacement_patterns(self, line):
         """
