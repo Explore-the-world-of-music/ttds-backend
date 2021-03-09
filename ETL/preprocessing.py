@@ -43,16 +43,23 @@ class Preprocessor():
 
     def load_data_from_db(self, song_model, artist_model):
         song_ids =[]
-        data = [] 
+        data = []
         for song in song_model.query.join(artist_model).all():
             song_ids.append(song.id)
-            song_data = []
-            song_data.append(song.artist.name)
-            song_data.append(song.name)
-            song_data.append(song.album)
-            song_data.append(song.genre)
-            song_data.append(song.lyrics)
+
+            song_data = ""
+            if song.artist.name is not None:
+                song_data = song_data + " " + song.artist.name  # Add artist name
+            if song.name is not None:
+                song_data = song_data + " " + song.name  # Add song name
+            if song.album is not None:
+                song_data = song_data + " " + song.album  # Add song album
+            if song.genre is not None:
+                song_data = song_data + " " + song.genre  # Add song genre
+            song_data = song_data + " " + song.lyrics  # Add song lyrics
+
             data.append(song_data)
+
         return song_ids, data
 
     def replace_replacement_patterns(self, line):
