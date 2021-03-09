@@ -64,10 +64,10 @@ indexer.add_all_doc_ids(doc_ids)
 # Load index (for testing)
 indexer.index = indexer.load_index()
 qc = Query_Completer(n = 3)
-#qc.load_model("./features/qc_model.pkl", "./features/qc_map_to_int.pkl",  "./features/qc_map_to_token.pkl")
+qc.load_model("./features/qc_model.pkl", "./features/qc_map_to_int.pkl",  "./features/qc_map_to_token.pkl")
 
 wc = Word_Completer()
-#wc.load_model("./features/wc_model.pkl")
+wc.load_model("./features/wc_model.pkl")
 
 @app.route("/")
 def handle_root():
