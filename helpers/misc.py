@@ -22,3 +22,11 @@ def create_default_dict_list():
     :return: default dict with list
     """
     return defaultdict(list)
+
+def load_queries(filepath):
+    with open(filepath, mode="r", encoding="utf-8") as f:
+        queries = f.readlines()
+    queries = [query.split() for query in queries]
+    query_num = [query[0] for query in queries]
+    query = [" ".join(query[1:]) for query in queries]
+    return query_num, query

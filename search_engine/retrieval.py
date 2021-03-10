@@ -9,6 +9,7 @@ from operator import itemgetter
 import time
 import datetime
 import csv
+import pandas as pd
 
 
 def find_docs_with_term(term, index):
@@ -383,15 +384,15 @@ def execute_search(query, indexer, preprocessor):
         return results, tfs_docs
 
 
-def execute_queries_and_save_results(query, search_type, indexer, preprocessor, config, SongModel):
+def execute_queries_and_save_results(query, indexer, preprocessor, config, SongModel, query_num = None):
     """
     Function to execute search and return results
     :param query: Query that should be searched (str)
-    :param search_type: Parameter which search type it is (str)
     :param indexer: Class instance for the created index (Indexer)
     :param preprocessor: Preprocessor class instance (Preprocessor)
     :param config: Defined configuration settings (dict)
     :param SongModel: Class instance for the database connection (SongModel)
+    :param query_num: Number of query used for system evaluation (int)
     :return: results (list)
     """
 
@@ -470,4 +471,21 @@ def execute_queries_and_save_results(query, search_type, indexer, preprocessor, 
         results = []
         for doc_id, value in rel_docs_with_tfidf_scaled:
             results.append((doc_id,round(value, 4)))
-        return results
+
+        if config["retrieval"]["perform_system_evaluation"]:
+            doc_number = [x[0] for x in rel_docs_with_tfidf_scaled]
+            rank_of_doc = np.arange(1, len(doc_number) + 1)
+            score = [x[1] for x in rel_docs_with_tfidf_scaled]
+            query_number = [query_num] * len(doc_number)
+            results_frame = pd.DataFrame({"query_number": query_number, "doc_number": doc_number,
+                                          "rank_of_doc": rank_of_doc, "score": score})
+            results_frame["query_number"] = results_frame["query_number"].astype(str)
+        else:
+            results_frame = pd.DataFrame()
+
+        return results, results_frame
+
+    else:
+        results = []
+        results_frame = pd.DataFrame()
+        return results, results_frame
