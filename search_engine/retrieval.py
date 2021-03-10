@@ -263,6 +263,7 @@ def calculate_tfidf(rel_docs, tfs_docs, indexer, logical_search):
     else:
         # Only one search component
         df = len(rel_docs)  # document frequency
+
         # Calculate the weights per document
         if df > 0:
             # Please note that the calculation was adjusted to differentiate documents in ranking even if
@@ -366,11 +367,13 @@ def execute_search(query, indexer, preprocessor):
         if len(search_results.keys()) < 2:
             key = list(search_results.keys())[0]
             final_rel_doc_ids = search_results[key]["rel_docs"]
+            final_rel_doc_ids = sorted(list(set(final_rel_doc_ids)))
 
             # Convert results to appropriate output format
-            tfs_docs = dict(Counter(final_rel_doc_ids))
-            tfs_docs = defaultdict(int, tfs_docs)
-            final_rel_doc_ids = sorted(list(set(final_rel_doc_ids)))
+            tfs_docs = defaultdict(int, dict(Counter(final_rel_doc_ids)))
+            for key2 in tfs_docs.keys():
+                tfs_docs[key2] = len(search_results[key]["rel_doc_pos"][key2])
+
             return final_rel_doc_ids, tfs_docs
         else:
             rel_docs, tfs_docs = simple_proximity_search(search_results, indexer=indexer, n=1, phrase=True, pos_asterisk = pos_asterisk)
@@ -384,7 +387,8 @@ def execute_search(query, indexer, preprocessor):
         return results, tfs_docs
 
 
-def execute_queries_and_save_results(query, indexer, preprocessor, config, SongModel, query_num = None):
+def execute_queries_and_save_results(query, indexer, preprocessor, config, SongModel, ArtistModel,
+                                     query_num = None):
     """
     Function to execute search and return results
     :param query: Query that should be searched (str)
@@ -392,6 +396,7 @@ def execute_queries_and_save_results(query, indexer, preprocessor, config, SongM
     :param preprocessor: Preprocessor class instance (Preprocessor)
     :param config: Defined configuration settings (dict)
     :param SongModel: Class instance for the database connection (SongModel)
+    :param ArtistModel: Class instance for the database connection (ArtistModel)
     :param query_num: Number of query used for system evaluation (int)
     :return: results (list)
     """
@@ -432,13 +437,13 @@ def execute_queries_and_save_results(query, indexer, preprocessor, config, SongM
 
             # Get popularity scores for rel_dc
             rel_docs = [x[0] for x in rel_docs_with_tfidf_scaled]
-            pop_score = preprocessor.ret_popScore_list(SongModel, rel_docs, config)
+            pop_score = preprocessor.ret_popScore_list(SongModel, ArtistModel, rel_docs, config)
             if np.isnan(pop_score).sum() > 0:
                 print("WARNING: NA VALUES IN POPULARITY SCORE")
 
             # Get weighted average of popularity score and tfidf score
             rel_docs_score = [x[1] for x in rel_docs_with_tfidf_scaled]
-            rel_docs_score_cust = [x * config["retrieval"]["weight_popularity_score"] + round(y,4) * (1-config["retrieval"]["weight_popularity_score"])
+            rel_docs_score_cust = [x * config["retrieval"]["weight_popularity_score"] + round(y * (1-config["retrieval"]["weight_popularity_score"]),4)
                                    for x, y in zip(pop_score, rel_docs_score)]
 
             # Overwrite old tfids scores with new scores
@@ -449,7 +454,7 @@ def execute_queries_and_save_results(query, indexer, preprocessor, config, SongM
                 print("--------------------------------------------")
                 print(f'The relevant documents are {rel_docs}')
                 print(f'The pop score is {pop_score}')
-                print(f'The tfids score is {rel_docs_score}')
+                print(f'The tfids score is {np.round(rel_docs_score,4)}')
                 print(f'The new score is {rel_docs_with_tfidf_scaled}')
                 print("--------------------------------------------")
 

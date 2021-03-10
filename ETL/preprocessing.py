@@ -49,7 +49,7 @@ class Preprocessor():
 
         return song_ids, data
 
-    def ret_popScore_list(self, SongModel, song_ids, config):
+    def ret_popScore_list(self, SongModel, ArtistModel, song_ids, config):
         """
         INPUT: List of Song IDs
         OUTPUT: Return a list of Popularity scores (rating) for that song
@@ -57,13 +57,15 @@ class Preprocessor():
         pop_list = []
 
         for song in song_ids:
-            pop_score = SongModel.query.filter(SongModel.id == song).all()
-            pop_list.append(pop_score[0].rating)
+            pop_score = SongModel.query.join(ArtistModel).filter(SongModel.id == song).all()
+            pop_list.append(pop_score[0].artist.rating)
 
             if config["retrieval"]["result_checking"]:
-                print(f'THe song id is {song}')
-                print(f'THe song name is: {pop_score[0].name}')
-                print(f' The popularity score is: {pop_score[0].rating}')
+                print(f'The song id is {song}')
+                print(f'The song name is: {pop_score[0].name}')
+                print(f'The artist name is: {pop_score[0].artist.name}')
+                print(f' The popularity score for the artist is: {pop_score[0].artist.rating}')
+                print(f' The popularity score for the song is: {pop_score[0].rating}')
                 print("---------------------------------------------")
 
         return pop_list

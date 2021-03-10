@@ -103,7 +103,9 @@ def handle_songs():
         results_data_frame = pd.DataFrame()
         for query_num, query in zip(queries_num, queries):
             _, results_data_frame_tmp = execute_queries_and_save_results(query, indexer=indexer,preprocessor=preprocessor,
-                                                                         config=config, SongModel=SongModel, query_num=query_num)
+                                                                         config=config, SongModel=SongModel,
+                                                                         ArtistModel = ArtistModel,
+                                                                         query_num=query_num)
             results_data_frame = results_data_frame.append(results_data_frame_tmp)
 
         # Todo: Take out again once we have real values
@@ -144,7 +146,7 @@ def handle_songs():
 
     # Perform search to be shown in front end
     db_results, _ = execute_queries_and_save_results(query, indexer=indexer,preprocessor=preprocessor,
-                                                     config=config, SongModel=SongModel)
+                                                     config=config, SongModel=SongModel, ArtistModel = ArtistModel)
 
     if db_results == None:
         return {"songs": []}
