@@ -6,6 +6,8 @@ from nltk.stem import PorterStemmer
 import re
 import os
 import xml.etree.ElementTree as ET
+from tqdm import tqdm
+import pickle
 
 # Set path as needed for Preprocessor class
 path = os.path.abspath(__file__)
@@ -44,7 +46,9 @@ class Preprocessor():
     def load_data_from_db(self, song_model, artist_model):
         song_ids =[]
         data = []
-        for song in song_model.query.join(artist_model).all():
+        rows = song_model.query.count()
+
+        for song in tqdm(song_model.query.join(artist_model).all(), total = rows):
             song_ids.append(song.id)
 
             song_data = ""
@@ -60,6 +64,9 @@ class Preprocessor():
 
             data.append(song_data)
 
+        with open("data.pickle", "wb") as data_file:
+            pickle.dump((song_ids, data), data_file)
+                
         return song_ids, data
 
     def replace_replacement_patterns(self, line):

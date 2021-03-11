@@ -20,8 +20,9 @@ def find_docs_with_term(term, index):
     :return: list of relevant doc ids (list)
     """
     if term in index.keys():
-        rel_doc_ids = list(index[term].keys())
+        rel_doc_ids = list(index[term][0])
     else:
+        
         rel_doc_ids = []
 
     return rel_doc_ids
@@ -36,7 +37,7 @@ def get_rel_doc_pos(term, index):
     :return: positions of term for related doc ids (list of lists)
     """
     if term in index.keys():
-        rel_doc_pos = index[term]
+        rel_doc_pos = dict(zip(index[term][0], index[term][1]))
     else:
         rel_doc_pos = dict()
 
@@ -51,7 +52,7 @@ def get_tfs_docs(term, index):
     :param index: Index in which to search (dict)
     :return: term frequencies of term for related doc ids (dict)
     """
-    tfs_docs = index[term].copy()
+    tfs_docs = dict(zip(index[term][0], index[term][1]))
     tfs_docs = defaultdict(int, tfs_docs)
     for doc in tfs_docs.keys():
         tfs_docs[doc] = len(tfs_docs[doc])
@@ -118,7 +119,7 @@ def bool_search(search_results, indexer, bool_vals):
             rel_docs = list(set(rel_docs + search_results[terms[idx + 1]]["rel_docs"]))
 
         elif bool_val == "||--":
-            rel_docs = list(set([doc_id for doc_id in indexer.all_doc_ids if doc_id not in
+            rel_docs = list(set([doc_id for doc_id in range(indexer.total_num_docs) if doc_id not in
                                  search_results[terms[idx + 1]]["rel_docs"]] + rel_docs))
 
         else:
@@ -200,7 +201,7 @@ def simple_tfidf_search(terms, indexer):
     :return: Descending sorted pseudo-dictionary with doc_id as key and TF-IDF as value (list)
     """
     doc_relevance = {}
-    total_num_docs = len(indexer.all_doc_ids)
+    total_num_docs = indexer.total_num_docs
 
     for t in terms:
         rel_docs = find_docs_with_term(t, indexer.index)
@@ -230,7 +231,7 @@ def calculate_tfidf(rel_docs, tfs_docs, indexer):
     :return: Descending sorted dictionary with doc_id as key and TF-IDF as value (dict)
     """
     doc_relevance = {}
-    total_num_docs = len(indexer.all_doc_ids)
+    total_num_docs = indexer.total_num_docs
     df = len(rel_docs)  # document frequency
 
     # Calculate the weights per document

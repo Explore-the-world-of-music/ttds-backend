@@ -37,8 +37,16 @@ from models.ArtistModel import ArtistModel
 # Stop time
 # Full run: 23 seconds
 # Run without creating but only loading index: 0-1 seconds
-dt_string_START = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-logging.warning(f"START date and time = {dt_string_START}")
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    handlers=[
+        logging.FileHandler("debug.log"),
+        logging.StreamHandler()
+    ]
+)
+
+logging.info("Start")
 
 # Load config
 config = load_yaml("config/config.yaml")
@@ -47,27 +55,35 @@ config = load_yaml("config/config.yaml")
 preprocessor = Preprocessor(config)
 
 # Load data
-doc_ids, raw_doc_data = preprocessor.load_data_from_db(SongModel, ArtistModel)
+# doc_ids, raw_doc_data = preprocessor.load_data_from_db(SongModel, ArtistModel)
+
+# logging.info("Finished loading data")
 
 # Initiate indexer instance
 indexer = Indexer(config)
 
 # Build index
-indexer.build_index(preprocessor, doc_ids, raw_doc_data)
+# indexer.build_index(preprocessor, doc_ids, raw_doc_data)
+
+# logging.info("Finished building index")
 
 # Save index
-indexer.store_index()
+# indexer.store_index()
+
+# logging.info("Index saved")
 
 # Add doc ids as index attribute
-indexer.add_all_doc_ids(doc_ids)
-
+# indexer.add_all_doc_ids(doc_ids)
+total_num_docs = SongModel.query.count()
 # Load index (for testing)
-indexer.index = indexer.load_index()
+indexer.index = indexer.load_index(total_num_docs, False)
 qc = Query_Completer(n = 3)
 #qc.load_model("./features/qc_model.pkl", "./features/qc_map_to_int.pkl",  "./features/qc_map_to_token.pkl")
 
 wc = Word_Completer()
 #wc.load_model("./features/wc_model.pkl")
+
+logging.info("Ready")
 
 @app.route("/")
 def handle_root():
