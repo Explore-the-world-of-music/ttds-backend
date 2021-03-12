@@ -8,13 +8,16 @@ import os
 import logging
 import sys
 from datetime import datetime
+import pandas as pd
 
 from ETL.preprocessing import Preprocessor
 from features.ngram_model import Query_Completer
 from features.word_completion import Word_Completer
-from helpers.misc import load_yaml
+from helpers.misc import load_yaml, load_queries
 from search_engine.indexer import Indexer
 from search_engine.retrieval import execute_queries_and_save_results
+from search_engine.system_evaluation import get_true_positives, calculate_precision, calculate_recall, \
+    calculate_average_precision, calculate_discounted_cumulative_gain
 
 app = Flask(__name__)
 CORS(app)
@@ -78,10 +81,10 @@ total_num_docs = SongModel.query.count()
 # Load index (for testing)
 indexer.index = indexer.load_index(total_num_docs, False)
 qc = Query_Completer(n = 3)
-#qc.load_model("./features/qc_model.pkl", "./features/qc_map_to_int.pkl",  "./features/qc_map_to_token.pkl")
+qc.load_model("./features/qc_model.pkl", "./features/qc_map_to_int.pkl",  "./features/qc_map_to_token.pkl")
 
 wc = Word_Completer()
-#wc.load_model("./features/wc_model.pkl")
+wc.load_model("./features/wc_model.pkl")
 
 logging.info("Ready")
 
@@ -109,8 +112,57 @@ def handle_songs():
     artists = request.args.get("artists", "")
     genres = request.args.get("genres", "")
 
-    db_results = execute_queries_and_save_results(query, search_type="boolean_and_tfidf", indexer=indexer,
-                                                  preprocessor=preprocessor, config=config)
+    if config["retrieval"]["perform_system_evaluation"]:
+        print("Perform system evaluation")
+        # Load and run queries
+        queries_num, queries = load_queries('system_evaluation/queries.system_evaluation.txt')
+        results_data_frame = pd.DataFrame()
+        for query_num, query in zip(queries_num, queries):
+            _, results_data_frame_tmp = execute_queries_and_save_results(query, indexer=indexer,preprocessor=preprocessor,
+                                                                         config=config, SongModel=SongModel,
+                                                                         ArtistModel = ArtistModel,
+                                                                         query_num=query_num)
+            results_data_frame = results_data_frame.append(results_data_frame_tmp)
+
+        # Todo: Take out again once we have real values
+        dummy_correct_results = results_data_frame[["query_number", "doc_number", "score"]].reset_index(drop=True)
+        dummy_correct_results["relevance"] = [round(x, 0) for x in dummy_correct_results["score"]]
+        dummy_correct_results.drop(columns=["score"], inplace=True)
+        dummy_correct_results.to_csv("system_evaluation/correct_search_results.csv", index=False)
+
+        # Load correct results
+        df_correct_search_results = pd.read_csv("system_evaluation/correct_search_results.csv")
+        df_correct_search_results["query_number"] = df_correct_search_results["query_number"].astype(str)
+
+        # Calculate precision
+        df_evaluation_results = calculate_precision(results_data_frame, df_correct_search_results,
+                                                    cutoff=config["retrieval"]["number_ranked_documents"])
+
+        # Calculate recall
+        df_evaluation_results = pd.merge(df_evaluation_results,
+                                         calculate_recall(results_data_frame, df_correct_search_results,
+                                                          cutoff=config["retrieval"]["number_ranked_documents"]),
+                                         how="left", on=["query_number"])
+
+        # Calculate AP
+        df_evaluation_results = pd.merge(df_evaluation_results,
+                                         calculate_average_precision(results_data_frame, df_correct_search_results),
+                                         how="left",on =["query_number"])
+
+        # Calculate nDCG@10
+        df_evaluation_results = pd.merge(
+            df_evaluation_results, calculate_discounted_cumulative_gain(results_data_frame,df_correct_search_results,
+                                                                        rank=config["retrieval"]["number_ranked_documents"]),
+            how="left", on=["query_number"])
+
+        # Output results in the appropriate format
+        df_evaluation_results = df_evaluation_results.round(3)
+        print(f' The evaluation results are:\n {df_evaluation_results}')
+        df_evaluation_results.to_csv("system_evaluation/results_system_evaluation.csv", index=False)
+
+    # Perform search to be shown in front end
+    db_results, _ = execute_queries_and_save_results(query, indexer=indexer,preprocessor=preprocessor,
+                                                     config=config, SongModel=SongModel, ArtistModel = ArtistModel)
 
     if db_results == None:
         return {"songs": []}

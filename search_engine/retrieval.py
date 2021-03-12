@@ -9,6 +9,7 @@ from operator import itemgetter
 import time
 import datetime
 import csv
+import pandas as pd
 
 
 def find_docs_with_term(term, index):
@@ -60,37 +61,38 @@ def get_tfs_docs(term, index):
     return tfs_docs
 
 
-def get_tfs_docs_bool_search(rel_docs, search_results, bool_vals):
+def get_tfs_docs_bool_search(search_results, bool_vals, indexer):
     """
     Returns term frequencies of a boolean query
 
-    :param rel_docs: List of all doc_ids which are relevant for this boolean search (list)
     :param search_results: Results of document and tfs for each individual search term (dict)
     :param bool_vals: List of "&&", "&&--" or "||" or "||--" (list)
+    :param indexer: Class instance for the created index (Indexer)
     :return: term frequencies which are relevant for this boolean search (dict)
     """
     terms = list(search_results.keys())
-    # Extract tfs for the first term as basis for summation
-    tfs_docs = search_results[terms[0]]["tfs_docs"].copy()
+    # Extract tfs for the first term as basis
+    tfs_docs = search_results.copy()
 
     for idx, bool_val in enumerate(bool_vals):
 
-        if bool_val in ["&&", "&&--", "||"]:
-            for doc in rel_docs:
-                tfs_docs[doc] = tfs_docs[doc] + search_results[terms[idx + 1]]["tfs_docs"][doc]
+        # if bool_val in ["&&", "||"]: Nothing to change as all term frequencies matter
+
+        if bool_val == "&&--":
+            # Delete this query component as it adds no information about relevance of the individual query components
+            del tfs_docs[terms[idx+1]]
+
         elif bool_val == "||--":
-            # Note that here the additional term includes the documents in which the term was found.
-            # However, we are interested in the documents in which t2 is not found, hence we add
-            # "1" to the tf if it was not found.
-            for doc in rel_docs:
-                if doc not in search_results[terms[idx + 1]]["tfs_docs"].keys():
-                    tf_doc_t_new = 0.5
-                else:
-                    tf_doc_t_new = 0
-                tfs_docs[doc] = tfs_docs[doc] + tf_doc_t_new
-        else:
-            raise Exception(
-                "bool_val of search doesn't match either '&&', '&&--', '||' or '||--'. It is: {}.".format(bool_val))
+            # Here we need to inverse the logic and return the documents that do not contain the term
+            rel_docs_new = sorted(set([doc_id for doc_id in indexer.all_doc_ids if doc_id not in tfs_docs[terms[idx + 1]]["rel_docs"]]))
+
+            # As this represents only a weak search results, the term frequency is set to 0.5 as documents
+            # that have true positives should be favored
+            tfs_docs_new = dict.fromkeys(rel_docs_new, 0.5)
+
+            # Overwrite old values
+            tfs_docs[terms[idx + 1]]["rel_docs"] = rel_docs_new
+            tfs_docs[terms[idx + 1]]["tfs_docs"] = tfs_docs_new
 
     return tfs_docs
 
@@ -146,7 +148,6 @@ def simple_proximity_search(search_results, indexer, n=1, pos_asterisk=None, phr
     terms = list(search_results.keys())
     rel_documents_all_terms = bool_search(search_results, indexer=indexer, bool_vals=["&&"] * (len(terms) - 1))
 
-    # Todo: Think about if proximity search considers the max distance between first and last
     # if any(|pos_1 - pos_2|<= n) --> doc_id is relevant --> append it to returned final_rel_doc_ids list
     # Find potential candidates (differentiation important for multiple words in phrase/proximity search)
     final_rel_doc_ids = list()
@@ -221,37 +222,65 @@ def simple_tfidf_search(terms, indexer):
     return sorted_relevance
 
 
-def calculate_tfidf(rel_docs, tfs_docs, indexer):
+def calculate_tfidf(rel_docs, tfs_docs, indexer, logical_search):
     """
     Calculates the TF-IDF score for given search results for one search term
 
     :param rel_docs: List of relevant documents (list)
     :param tfs_docs: Term frequency in the relevant documents (list)
     :param indexer: Class instance for the created index (Indexer)
+    :param logical_search: Boolean value if the search is logical
     :return: Descending sorted dictionary with doc_id as key and TF-IDF as value (dict)
     """
     doc_relevance = {}
-    total_num_docs = indexer.total_num_docs
-    df = len(rel_docs)  # document frequency
+    total_num_docs = len(indexer.all_doc_ids)
 
-    # Calculate the weights per document
-    if df > 0:
-        # Please note that the calculation was adjusted to differentiate documents in ranking even if
-        # all documents of the collection are part of the relevant documents
-        if total_num_docs == df:
-            weights_docs = [(1 + np.log10(tfs_docs[key])) * 1 for key in rel_docs]
-        else:
-            weights_docs = [(1 + np.log10(tfs_docs[key])) * (np.log10(total_num_docs / df)) for key in rel_docs]
+    # Split cases for boolean search and searches with only one query component
+    if logical_search:
+
+        for query_component in tfs_docs.keys():
+            # Extract the document frequency for the query component
+            rel_docs_all = tfs_docs[query_component]["rel_docs"]
+            df = len(rel_docs_all)
+
+            if df > 0:
+                # Extract the query component frequencies but only for the RELEVANT documents
+                tfs_docs_all = [tfs_docs[query_component]["tfs_docs"][key] for key in rel_docs_all if key in rel_docs]
+
+                # Sum over all relevant documents
+                weights_docs = [(1 + np.log10(tf)) * np.log10(total_num_docs / df) for tf in tfs_docs_all]
+            else:
+                weights_docs = []
+
+            rel_docs_fin = [doc_id for doc_id in rel_docs_all if doc_id in rel_docs]
+            for doc_id, weight in zip(rel_docs_fin, weights_docs):
+                if doc_id not in doc_relevance:
+                    doc_relevance[doc_id] = weight
+                else:
+                    doc_relevance[doc_id] += weight
+
+        # Sort values
+        sorted_relevance = sorted(doc_relevance.items(), key=lambda x: x[1], reverse=True)
     else:
-        weights_docs = []
+        # Only one search component
+        df = len(rel_docs)  # document frequency
 
-    for doc_id, weight in zip(rel_docs, weights_docs):
-        if doc_id not in doc_relevance:
-            doc_relevance[doc_id] = weight
+        # Calculate the weights per document
+        if df > 0:
+            # Please note that the calculation was adjusted to differentiate documents in ranking even if
+            # all documents of the collection are part of the relevant documents
+            if total_num_docs == df:
+                weights_docs = [(1 + np.log10(tfs_docs[key])) * 1 for key in rel_docs]
+            else:
+                weights_docs = [(1 + np.log10(tfs_docs[key])) * (np.log10(total_num_docs / df)) for key in rel_docs]
         else:
-            doc_relevance[doc_id] += weight
+            weights_docs = []
 
-    sorted_relevance = sorted(doc_relevance.items(), key=lambda x: x[1], reverse=True)
+        for doc_id, weight in zip(rel_docs, weights_docs):
+            doc_relevance[doc_id] = weight
+
+        # Sort values
+        sorted_relevance = sorted(doc_relevance.items(), key=lambda x: x[1], reverse=True)
 
     return sorted_relevance
 
@@ -292,7 +321,7 @@ def execute_search(query, indexer, preprocessor):
                                                                                                 preprocessor)
 
         rel_docs = bool_search(search_results, indexer=indexer, bool_vals=type_of_bool_search)
-        tfs_docs = get_tfs_docs_bool_search(rel_docs, search_results, bool_vals=type_of_bool_search)
+        tfs_docs = get_tfs_docs_bool_search(search_results, bool_vals=type_of_bool_search, indexer=indexer)
 
         return rel_docs, tfs_docs
 
@@ -339,11 +368,13 @@ def execute_search(query, indexer, preprocessor):
         if len(search_results.keys()) < 2:
             key = list(search_results.keys())[0]
             final_rel_doc_ids = search_results[key]["rel_docs"]
+            final_rel_doc_ids = sorted(list(set(final_rel_doc_ids)))
 
             # Convert results to appropriate output format
-            tfs_docs = dict(Counter(final_rel_doc_ids))
-            tfs_docs = defaultdict(int, tfs_docs)
-            final_rel_doc_ids = sorted(list(set(final_rel_doc_ids)))
+            tfs_docs = defaultdict(int, dict(Counter(final_rel_doc_ids)))
+            for key2 in tfs_docs.keys():
+                tfs_docs[key2] = len(search_results[key]["rel_doc_pos"][key2])
+
             return final_rel_doc_ids, tfs_docs
         else:
             rel_docs, tfs_docs = simple_proximity_search(search_results, indexer=indexer, n=1, phrase=True, pos_asterisk = pos_asterisk)
@@ -357,62 +388,110 @@ def execute_search(query, indexer, preprocessor):
         return results, tfs_docs
 
 
-def execute_queries_and_save_results(query, search_type, indexer, preprocessor, config):
+def execute_queries_and_save_results(query, indexer, preprocessor, config, SongModel, ArtistModel,
+                                     query_num = None):
     """
     Function to execute search and return results
     :param query: Query that should be searched (str)
-    :param search_type: Parameter which search type it is (str)
     :param indexer: Class instance for the created index (Indexer)
     :param preprocessor: Preprocessor class instance (Preprocessor)
     :param config: Defined configuration settings (dict)
+    :param SongModel: Class instance for the database connection (SongModel)
+    :param ArtistModel: Class instance for the database connection (ArtistModel)
+    :param query_num: Number of query used for system evaluation (int)
     :return: results (list)
     """
 
-    if search_type == "boolean_and_tfidf": # Todo: Take if clause out once not needed anymore for testing
+    if preprocessor.replacement_patterns:
+        query = preprocessor.replace_replacement_patterns(query)
 
-        if preprocessor.replacement_patterns:
-            query = preprocessor.replace_replacement_patterns(query)
+    # Execute search for boolean queries considering ranking
+    search_pattern = re.compile(r'(&&--)|(\|\|--)|(&&)|(\|\|)|(#\d+)|^".*"$')
+    bool_pattern = re.compile(r"(&&--)|(\|\|--)|(&&)|(\|\|)")
 
-        # Execute search for boolean queries considering ranking
-        boolean_search_pattern = re.compile(r'(&&--)|(\|\|--)|(&&)|(\|\|)|(#\d+)|^".*"$')
+    if bool_pattern.search(query) is not None:
+        logical_search = True
+    else:
+        logical_search = False
 
-        # check if boolean search component is in query, then execute boolean search
-        # else execute tfidf search
-        if boolean_search_pattern.search(query) is not None:
-            rel_docs, tfs_docs = execute_search(query, indexer, preprocessor)
-            rel_docs_with_tfidf = calculate_tfidf(rel_docs, tfs_docs, indexer)
-        else:
-            terms = query.split()
-            terms = [preprocessor.preprocess(term)[0] for term in terms if len(preprocessor.preprocess(term)) > 0]
-            rel_docs_with_tfidf = simple_tfidf_search(terms, indexer)
+    # check if boolean search component is in query, then execute boolean search
+    # else execute tfidf search
+    if search_pattern.search(query) is not None:
+        rel_docs, tfs_docs = execute_search(query, indexer, preprocessor)
+        rel_docs_with_tfidf = calculate_tfidf(rel_docs, tfs_docs, indexer, logical_search)
+    else:
+        terms = query.split()
+        terms = [preprocessor.preprocess(term)[0] for term in terms if len(preprocessor.preprocess(term)) > 0]
+        rel_docs_with_tfidf = simple_tfidf_search(terms, indexer)
 
-        if len(rel_docs_with_tfidf) > 0:
-            # Only keep top results
-            if len(rel_docs_with_tfidf) > config["retrieval"]["number_ranked_documents"]:
-                rel_docs_with_tfidf = rel_docs_with_tfidf[:config["retrieval"]["number_ranked_documents"]]
+    if len(rel_docs_with_tfidf) > 0:
+
+        # Rescale the results. For queries with "OR NOT" it can happen that the difference in scores between the
+        # documents are very low (0.0001). To interpret results easier we re-scale here based on the highest score
+        max_value = max(rel_docs_with_tfidf, key=itemgetter(1))[1]
+        rel_docs_with_tfidf_scaled = list()
+        for idx, _ in enumerate(rel_docs_with_tfidf):
+            rel_docs_with_tfidf_scaled.append(
+                (rel_docs_with_tfidf[idx][0], rel_docs_with_tfidf[idx][1] / max_value * 10))
+
+        if config["retrieval"]["customized_ranking"]:
+
+            # Get popularity scores for rel_dc
+            rel_docs = [x[0] for x in rel_docs_with_tfidf_scaled]
+            pop_score = preprocessor.ret_popScore_list(SongModel, ArtistModel, rel_docs, config)
+            if np.isnan(pop_score).sum() > 0:
+                print("WARNING: NA VALUES IN POPULARITY SCORE")
+
+            # Get weighted average of popularity score and tfidf score
+            rel_docs_score = [x[1] for x in rel_docs_with_tfidf_scaled]
+            rel_docs_score_cust = [x * config["retrieval"]["weight_popularity_score"] + round(y * (1-config["retrieval"]["weight_popularity_score"]),4)
+                                   for x, y in zip(pop_score, rel_docs_score)]
+
+            # Overwrite old tfids scores with new scores
+            rel_docs_with_tfidf_scaled = [(x, y) for x, y in zip(rel_docs, rel_docs_score_cust)]
+            rel_docs_with_tfidf_scaled.sort(key = lambda x: x[1], reverse=True)
 
             if config["retrieval"]["result_checking"]:
-                # Rescale the results. For queries with "OR NOT" it can happen that the difference in scores between the
-                # documents are very low (0.0001). To interpret results easier we re-scale here based on the highest score
-                max_value = max(rel_docs_with_tfidf, key=itemgetter(1))[1]
-                rel_docs_with_tfidf_scaled = list()
-                for idx, _ in enumerate(rel_docs_with_tfidf):
-                    rel_docs_with_tfidf_scaled.append((rel_docs_with_tfidf[idx][0], rel_docs_with_tfidf[idx][1] / max_value * 10))
+                print("--------------------------------------------")
+                print(f'The relevant documents are {rel_docs}')
+                print(f'The pop score is {pop_score}')
+                print(f'The tfids score is {np.round(rel_docs_score,4)}')
+                print(f'The new score is {rel_docs_with_tfidf_scaled}')
+                print("--------------------------------------------")
 
-                # Save results on local disk
-                ts = time.time()
-                st = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d_%H_%M_%S')
+        # Only keep top results
+        if len(rel_docs_with_tfidf_scaled) > config["retrieval"]["number_ranked_documents"]:
+            rel_docs_with_tfidf_scaled = rel_docs_with_tfidf_scaled[:config["retrieval"]["number_ranked_documents"]]
 
-                with open(st + "_search_results.csv", 'w', newline="") as out:
-                    csv_out = csv.writer(out)
-                    csv_out.writerow(['doc_id', 'score'])
-                    csv_out.writerows(rel_docs_with_tfidf_scaled)
+        if config["retrieval"]["result_checking"]:
+            # Save results on local disk
+            ts = time.time()
+            st = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d_%H_%M_%S')
 
-            else:
-                rel_docs_with_tfidf_scaled = rel_docs_with_tfidf
+            with open(st + "_search_results.csv", 'w', newline="") as out:
+                csv_out = csv.writer(out)
+                csv_out.writerow(['doc_id', 'score'])
+                csv_out.writerows(rel_docs_with_tfidf_scaled)
 
-            # Write output (only document ids), implementation efficient as maximal number of results 10-100
-            results = []
-            for doc_id, value in rel_docs_with_tfidf_scaled:
-                results.append((doc_id,round(value, 4)))
-            return results
+        # Write output (only document ids), implementation efficient as maximal number of results 10-100
+        results = []
+        for doc_id, value in rel_docs_with_tfidf_scaled:
+            results.append((doc_id,round(value, 4)))
+
+        if config["retrieval"]["perform_system_evaluation"]:
+            doc_number = [x[0] for x in rel_docs_with_tfidf_scaled]
+            rank_of_doc = np.arange(1, len(doc_number) + 1)
+            score = [x[1] for x in rel_docs_with_tfidf_scaled]
+            query_number = [query_num] * len(doc_number)
+            results_frame = pd.DataFrame({"query_number": query_number, "doc_number": doc_number,
+                                          "rank_of_doc": rank_of_doc, "score": score})
+            results_frame["query_number"] = results_frame["query_number"].astype(str)
+        else:
+            results_frame = pd.DataFrame()
+
+        return results, results_frame
+
+    else:
+        results = []
+        results_frame = pd.DataFrame()
+        return results, results_frame

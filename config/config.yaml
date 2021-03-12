@@ -5,3 +5,6 @@ preprocessing:
 retrieval:
   number_ranked_documents: 10
   result_checking: False
+  customized_ranking: True
+  weight_popularity_score: 0.3
+  perform_system_evaluation: False
