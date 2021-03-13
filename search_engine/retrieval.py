@@ -112,17 +112,24 @@ def bool_search(search_results, indexer, bool_vals):
 
     for idx, bool_val in enumerate(bool_vals):
         if bool_val == "&&":
-            rel_docs = [doc_id for doc_id in rel_docs if doc_id in search_results[terms[idx + 1]]["rel_docs"]]
+            # Todo: Note adjustment 1
+            # rel_docs = [doc_id for doc_id in rel_docs if doc_id in search_results[terms[idx + 1]]["rel_docs"]]
+            rel_docs = list(set(rel_docs).intersection(search_results[terms[idx + 1]]["rel_docs"]))
 
         elif bool_val == "&&--":
-            rel_docs = [doc_id for doc_id in rel_docs if doc_id not in search_results[terms[idx + 1]]["rel_docs"]]
+            # Todo: Note adjustment 2
+            # rel_docs = [doc_id for doc_id in rel_docs if doc_id not in search_results[terms[idx + 1]]["rel_docs"]]
+            rel_docs = list(set(rel_docs) - set(search_results[terms[idx + 1]]["rel_docs"]))
 
         elif bool_val == "||":
             rel_docs = list(set(rel_docs + search_results[terms[idx + 1]]["rel_docs"]))
 
         elif bool_val == "||--":
-            rel_docs = list(set([doc_id for doc_id in range(indexer.total_num_docs) if doc_id not in
-                                 search_results[terms[idx + 1]]["rel_docs"]] + rel_docs))
+            # Todo: Note adjustment 3
+            # rel_docs = list(set([doc_id for doc_id in range(1,indexer.total_num_docs+1) if doc_id not in
+            #                    search_results[terms[idx + 1]]["rel_docs"]] + rel_docs))
+            rel_docs = list((set(range(1, indexer.total_num_docs + 1)) -
+                             set(search_results[terms[idx + 1]]["rel_docs"])).union(set(rel_docs)))
 
         else:
             raise Exception(
@@ -402,6 +409,9 @@ def execute_queries_and_save_results(query, indexer, preprocessor, config, SongM
     :return: results (list)
     """
 
+    # dt_string_START = datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+    # print(f'START date and time = {dt_string_START}')
+
     if preprocessor.replacement_patterns:
         query = preprocessor.replace_replacement_patterns(query)
 
@@ -489,9 +499,16 @@ def execute_queries_and_save_results(query, indexer, preprocessor, config, SongM
         else:
             results_frame = pd.DataFrame()
 
+        # dt_string_END = datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+        # print(f'END date and time = {dt_string_END}')
+
         return results, results_frame
 
     else:
         results = []
         results_frame = pd.DataFrame()
+
+        # dt_string_END = datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+        # print(f'END date and time = {dt_string_END}')
+
         return results, results_frame
