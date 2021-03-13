@@ -241,21 +241,28 @@ def calculate_tfidf(rel_docs, tfs_docs, indexer, logical_search):
     if logical_search:
 
         for query_component in tfs_docs.keys():
+            print(f'Calculations for {query_component}')
+            TIMESTAMP = datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+            print(f'TIMESTAMP = {TIMESTAMP}')
             # Extract the document frequency for the query component
             rel_docs_all = tfs_docs[query_component]["rel_docs"]
             df = len(rel_docs_all)
 
             if df > 0:
+                # Todo: Note optimization here
                 # Extract the query component frequencies but only for the RELEVANT documents
-                tfs_docs_all = [tfs_docs[query_component]["tfs_docs"][key] for key in rel_docs_all if key in rel_docs]
+                # tfs_docs_all = [tfs_docs[query_component]["tfs_docs"][key] for key in rel_docs_all if key in rel_docs]
+                docs_loop = sorted(list(set(tfs_docs[query_component]["tfs_docs"].keys()).intersection(rel_docs)))
+                tfs_docs_all = [tfs_docs[query_component]["tfs_docs"][key] for key in docs_loop]
 
                 # Sum over all relevant documents
                 weights_docs = [(1 + np.log10(tf)) * np.log10(total_num_docs / df) for tf in tfs_docs_all]
             else:
                 weights_docs = []
 
-            rel_docs_fin = [doc_id for doc_id in rel_docs_all if doc_id in rel_docs]
-            for doc_id, weight in zip(rel_docs_fin, weights_docs):
+            # Todo: Note optimization here
+            # rel_docs_fin = [doc_id for doc_id in rel_docs_all if doc_id in rel_docs]
+            for doc_id, weight in zip(docs_loop, weights_docs):
                 if doc_id not in doc_relevance:
                     doc_relevance[doc_id] = weight
                 else:
@@ -404,7 +411,7 @@ def execute_queries_and_save_results(query, indexer, preprocessor, config, SongM
     """
 
     dt_string_START = datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-    print(f'START date and time = {dt_string_START}')
+    print(f'START date and time of SEARCH ENGINE = {dt_string_START}')
 
     if preprocessor.replacement_patterns:
         query = preprocessor.replace_replacement_patterns(query)
@@ -422,10 +429,14 @@ def execute_queries_and_save_results(query, indexer, preprocessor, config, SongM
     # else execute tfidf search
     if search_pattern.search(query) is not None:
         rel_docs, tfs_docs = execute_search(query, indexer, preprocessor)
+        dt_string_START_RETRIEVAL = datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+        print(f'START date and time of TFIDF CALCULATION = {dt_string_START_RETRIEVAL}')
         rel_docs_with_tfidf = calculate_tfidf(rel_docs, tfs_docs, indexer, logical_search)
     else:
         terms = query.split()
         terms = [preprocessor.preprocess(term)[0] for term in terms if len(preprocessor.preprocess(term)) > 0]
+        dt_string_START_RETRIEVAL = datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+        print(f'START date and time of TFIDF CALCULATION = {dt_string_START_RETRIEVAL}')
         rel_docs_with_tfidf = simple_tfidf_search(terms, indexer)
 
     if len(rel_docs_with_tfidf) > 0:
@@ -440,11 +451,17 @@ def execute_queries_and_save_results(query, indexer, preprocessor, config, SongM
 
         if config["retrieval"]["customized_ranking"]:
 
+            # Todo: Fix customized ranking, and then activate again
+
+            dt_string_START_CUSTOMIZED_RANKING = datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+            print(f'START date and time of CUSTOMIZED RANKING ADJUSTMENT = {dt_string_START_CUSTOMIZED_RANKING}')
+
             # Get popularity scores for rel_dc
             rel_docs = [x[0] for x in rel_docs_with_tfidf_scaled]
             pop_score = preprocessor.ret_popScore_list(SongModel, ArtistModel, rel_docs, config)
             if np.isnan(pop_score).sum() > 0:
                 print("WARNING: NA VALUES IN POPULARITY SCORE")
+            print("Popularity score retrieved from database")
 
             # Get weighted average of popularity score and tfidf score
             rel_docs_score = [x[1] for x in rel_docs_with_tfidf_scaled]
@@ -494,7 +511,7 @@ def execute_queries_and_save_results(query, indexer, preprocessor, config, SongM
             results_frame = pd.DataFrame()
 
         dt_string_END = datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-        print(f'END date and time = {dt_string_END}')
+        print(f'END date and time of SEARCH ENGINE = {dt_string_END}')
 
         return results, results_frame
 
@@ -503,6 +520,6 @@ def execute_queries_and_save_results(query, indexer, preprocessor, config, SongM
         results_frame = pd.DataFrame()
 
         dt_string_END = datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-        print(f'END date and time = {dt_string_END}')
+        print(f'END date and time of SEARCH ENGINE = {dt_string_END}')
 
         return results, results_frame
