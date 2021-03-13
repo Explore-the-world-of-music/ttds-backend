@@ -15,7 +15,6 @@ import pandas as pd
 def find_docs_with_term(term, index):
     """
     Returns all doc_ids which contain the "term".
-
     :param term: The searched term (str)
     :param index: Index in which to search (dict)
     :return: list of relevant doc ids (list)
@@ -23,7 +22,6 @@ def find_docs_with_term(term, index):
     if term in index.keys():
         rel_doc_ids = list(index[term][0])
     else:
-        
         rel_doc_ids = []
 
     return rel_doc_ids
@@ -32,7 +30,6 @@ def find_docs_with_term(term, index):
 def get_rel_doc_pos(term, index):
     """
     Returns all relevant doc_positions of a term
-
     :param term: The searched term (str)
     :param index: Index in which to search (dict)
     :return: positions of term for related doc ids (list of lists)
@@ -48,7 +45,6 @@ def get_rel_doc_pos(term, index):
 def get_tfs_docs(term, index):
     """
     Returns term frequencies of a term in the documents
-
     :param term: The searched term (str)
     :param index: Index in which to search (dict)
     :return: term frequencies of term for related doc ids (dict)
@@ -64,7 +60,6 @@ def get_tfs_docs(term, index):
 def get_tfs_docs_bool_search(search_results, bool_vals, indexer):
     """
     Returns term frequencies of a boolean query
-
     :param search_results: Results of document and tfs for each individual search term (dict)
     :param bool_vals: List of "&&", "&&--" or "||" or "||--" (list)
     :param indexer: Class instance for the created index (Indexer)
@@ -84,7 +79,7 @@ def get_tfs_docs_bool_search(search_results, bool_vals, indexer):
 
         elif bool_val == "||--":
             # Here we need to inverse the logic and return the documents that do not contain the term
-            rel_docs_new = sorted(set([doc_id for doc_id in indexer.all_doc_ids if doc_id not in tfs_docs[terms[idx + 1]]["rel_docs"]]))
+            rel_docs_new = sorted(set([doc_id for doc_id in range(indexer.total_num_docs) if doc_id not in tfs_docs[terms[idx + 1]]["rel_docs"]]))
 
             # As this represents only a weak search results, the term frequency is set to 0.5 as documents
             # that have true positives should be favored
@@ -100,7 +95,6 @@ def get_tfs_docs_bool_search(search_results, bool_vals, indexer):
 def bool_search(search_results, indexer, bool_vals):
     """
     Executes a boolean search between relevant documents for all searched terms.
-
     :param search_results: Results of document and tfs for each individual search term (dict)
     :param indexer: Class instance for the created index (Indexer)
     :param bool_vals: List of "&&", "&&--" or "||" or "||--" (list)
@@ -136,7 +130,6 @@ def simple_proximity_search(search_results, indexer, n=1, pos_asterisk=None, phr
     """
     Calculates if terms in query are in the same document with less or equal to n distance and return relevant doc_ids.
     Option to perform phrase search.
-
     :param search_results: Results of document and tfs for each individual search term (dict)
     :param indexer: Class instance for the created index (Indexer)
     :param n: allowed distance in one document (int)
@@ -196,7 +189,6 @@ def simple_proximity_search(search_results, indexer, n=1, pos_asterisk=None, phr
 def simple_tfidf_search(terms, indexer):
     """
     Calculates the TF-IDF score for multiple terms and returns an ordered dict.
-
     :param terms: List of terms contained in search (list)
     :param indexer: Class instance for the created index (Indexer)
     :return: Descending sorted pseudo-dictionary with doc_id as key and TF-IDF as value (list)
@@ -225,7 +217,6 @@ def simple_tfidf_search(terms, indexer):
 def calculate_tfidf(rel_docs, tfs_docs, indexer, logical_search):
     """
     Calculates the TF-IDF score for given search results for one search term
-
     :param rel_docs: List of relevant documents (list)
     :param tfs_docs: Term frequency in the relevant documents (list)
     :param indexer: Class instance for the created index (Indexer)
@@ -233,7 +224,7 @@ def calculate_tfidf(rel_docs, tfs_docs, indexer, logical_search):
     :return: Descending sorted dictionary with doc_id as key and TF-IDF as value (dict)
     """
     doc_relevance = {}
-    total_num_docs = len(indexer.all_doc_ids)
+    total_num_docs = indexer.total_num_docs
 
     # Split cases for boolean search and searches with only one query component
     if logical_search:
@@ -289,7 +280,6 @@ def execute_search(query, indexer, preprocessor):
     """
     Checks, which type of search has to be done.
     Executes the search and returns the resulting, relevant doc_ids and tfs for those
-
     :param query: The query which should be searched for (str)
     :param indexer: Class instance for the created index (Indexer)
     :param preprocessor: Preprocessor class instance (Preprocessor)
