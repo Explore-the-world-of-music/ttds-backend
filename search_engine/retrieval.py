@@ -23,7 +23,6 @@ def find_docs_with_term(term, index):
     if term in index.keys():
         rel_doc_ids = list(index[term][0])
     else:
-        
         rel_doc_ids = []
 
     return rel_doc_ids
@@ -38,6 +37,7 @@ def get_rel_doc_pos(term, index):
     :return: positions of term for related doc ids (list of lists)
     """
     if term in index.keys():
+        #Todo: Double check implementation once it runs again
         rel_doc_pos = dict(zip(index[term][0], index[term][1]))
     else:
         rel_doc_pos = dict()
@@ -83,8 +83,10 @@ def get_tfs_docs_bool_search(search_results, bool_vals, indexer):
             del tfs_docs[terms[idx+1]]
 
         elif bool_val == "||--":
+            # Todo: Note improvement and correction here
             # Here we need to inverse the logic and return the documents that do not contain the term
-            rel_docs_new = sorted(set([doc_id for doc_id in indexer.all_doc_ids if doc_id not in tfs_docs[terms[idx + 1]]["rel_docs"]]))
+            # rel_docs_new = sorted(set([doc_id for doc_id in indexer.all_doc_ids if doc_id not in tfs_docs[terms[idx + 1]]["rel_docs"]]))
+            rel_docs_new = sorted(set(range(1, indexer.total_num_docs + 1)) - set(tfs_docs[terms[idx + 1]]["rel_docs"]))
 
             # As this represents only a weak search results, the term frequency is set to 0.5 as documents
             # that have true positives should be favored
@@ -151,6 +153,7 @@ def simple_proximity_search(search_results, indexer, n=1, pos_asterisk=None, phr
     :param phrase: whether or not the search is a phrase search and ordering matters (bool)
     :return: List of all doc_ids which are relevant for proximity search (list)
     """
+    # Todo: Check running time for large sets of relevant documents and check efficiency improvements
     # Performs a boolean search to get documents which contain both terms
     terms = list(search_results.keys())
     rel_documents_all_terms = bool_search(search_results, indexer=indexer, bool_vals=["&&"] * (len(terms) - 1))
@@ -409,8 +412,8 @@ def execute_queries_and_save_results(query, indexer, preprocessor, config, SongM
     :return: results (list)
     """
 
-    # dt_string_START = datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-    # print(f'START date and time = {dt_string_START}')
+    dt_string_START = datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+    print(f'START date and time = {dt_string_START}')
 
     if preprocessor.replacement_patterns:
         query = preprocessor.replace_replacement_patterns(query)
@@ -499,8 +502,8 @@ def execute_queries_and_save_results(query, indexer, preprocessor, config, SongM
         else:
             results_frame = pd.DataFrame()
 
-        # dt_string_END = datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-        # print(f'END date and time = {dt_string_END}')
+        dt_string_END = datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+        print(f'END date and time = {dt_string_END}')
 
         return results, results_frame
 
@@ -508,7 +511,7 @@ def execute_queries_and_save_results(query, indexer, preprocessor, config, SongM
         results = []
         results_frame = pd.DataFrame()
 
-        # dt_string_END = datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-        # print(f'END date and time = {dt_string_END}')
+        dt_string_END = datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+        print(f'END date and time = {dt_string_END}')
 
         return results, results_frame
