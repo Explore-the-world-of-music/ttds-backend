@@ -81,10 +81,10 @@ total_num_docs = SongModel.query.count()
 # Load index (for testing)
 indexer.index = indexer.load_index(total_num_docs, False)
 qc = Query_Completer(n = 3)
-qc.load_model("./features/qc_model.pkl", "./features/qc_map_to_int.pkl",  "./features/qc_map_to_token.pkl")
+#qc.load_model("./features/qc_model.pkl", "./features/qc_map_to_int.pkl",  "./features/qc_map_to_token.pkl")
 
 wc = Word_Completer()
-wc.load_model("./features/wc_model.pkl")
+#wc.load_model("./features/wc_model.pkl")
 
 logging.info("Ready")
 
@@ -161,9 +161,10 @@ def handle_songs():
         df_evaluation_results.to_csv("system_evaluation/results_system_evaluation.csv", index=False)
 
     # Perform search to be shown in front end
+    print("getting ready")
     db_results, _ = execute_queries_and_save_results(query, indexer=indexer,preprocessor=preprocessor,
                                                      config=config, SongModel=SongModel, ArtistModel = ArtistModel)
-
+    print("done quering index")
     if db_results == None:
         return {"songs": []}
 
