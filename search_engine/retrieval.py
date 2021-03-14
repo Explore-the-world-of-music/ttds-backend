@@ -403,11 +403,9 @@ def get_pop_scores(SongModel, ArtistModel, song_ids, config):
     :param config current configuration
     :return list of artist popularity scores 
     """
-    pop_list = []
     logging.info("Sending request to the DB")
-    pop_scores = SongModel.query.join(ArtistModel).filter(SongModel.id.in_(song_ids))
-    logging.info(pop_scores)
-    pop_scores = pop_scores.all()
+    pop_scores = SongModel.query.join(ArtistModel).with_entities(ArtistModel.rating).filter(SongModel.id.in_(song_ids)).all()
+    pop_scores = [x[0] for x in pop_scores]
     logging.info("Got results from the DB")
 
     if config["retrieval"]["result_checking"]:
@@ -419,7 +417,7 @@ def get_pop_scores(SongModel, ArtistModel, song_ids, config):
             print(f' The popularity score for the song is: {pop_scores[i].rating}')
             print("---------------------------------------------")
 
-    return pop_list
+    return pop_scores
 
 def execute_queries_and_save_results(query, indexer, preprocessor, config, SongModel, ArtistModel,
                                      query_num = None):
@@ -482,6 +480,7 @@ def execute_queries_and_save_results(query, indexer, preprocessor, config, SongM
             print(f'START date and time of CUSTOMIZED RANKING ADJUSTMENT = {dt_string_START_CUSTOMIZED_RANKING}')
 
             # Get popularity scores for rel_dc
+            rel_docs_with_tfidf_scaled = rel_docs_with_tfidf_scaled[:config["retrieval"]["customized_ranking_result_limit"]]
             rel_docs = [x[0] for x in rel_docs_with_tfidf_scaled]
             pop_score = get_pop_scores(SongModel, ArtistModel, rel_docs, config)
             if np.isnan(pop_score).sum() > 0:
@@ -492,7 +491,7 @@ def execute_queries_and_save_results(query, indexer, preprocessor, config, SongM
             rel_docs_score = [x[1] for x in rel_docs_with_tfidf_scaled]
             rel_docs_score_cust = [x * config["retrieval"]["weight_popularity_score"] + round(y * (1-config["retrieval"]["weight_popularity_score"]),4)
                                    for x, y in zip(pop_score, rel_docs_score)]
-
+            
             # Overwrite old tfids scores with new scores
             rel_docs_with_tfidf_scaled = [(x, y) for x, y in zip(rel_docs, rel_docs_score_cust)]
             rel_docs_with_tfidf_scaled.sort(key = lambda x: x[1], reverse=True)

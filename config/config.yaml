@@ -8,3 +8,4 @@ retrieval:
   customized_ranking: True
   weight_popularity_score: 0.3
   perform_system_evaluation: False
+  customized_ranking_result_limit: 100
