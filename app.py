@@ -94,8 +94,8 @@ def handle_root():
 
 @app.route("/api/songs/get_genres")
 def handle_genres():
-    results = db.session.query(SongModel.genre).group_by(SongModel.genre).all()
-    return {"genres": [result.genre for result in results if result.genre is not None]}
+    results = db.session.query(SongModel.genre).with_entities(SongModel.genre).group_by(SongModel.genre).all()
+    return {"genres": [result.genre for result in results if result[0] is not None]}
 
 @app.route("/api/songs/search")
 def handle_songs():
@@ -161,10 +161,10 @@ def handle_songs():
         df_evaluation_results.to_csv("system_evaluation/results_system_evaluation.csv", index=False)
 
     # Perform search to be shown in front end
-    print("getting ready")
+    logging.info("Starting index search")
     db_results, _ = execute_queries_and_save_results(query, indexer=indexer,preprocessor=preprocessor,
                                                      config=config, SongModel=SongModel, ArtistModel = ArtistModel)
-    print("done quering index")
+    logging.info("Index search complete")
     if db_results == None:
         return {"songs": []}
 
@@ -177,13 +177,16 @@ def handle_songs():
     
     if artists != "":
         artists = artists.split(",")
-        query_list.append(SongModel.artist._in(artists))
+        query_list.append(SongModel.artist.in_(artists))
     
     if genres != "":
         genres = genres.split(",")
-        query_list.append(SongModel.genre._in(genres))
+        query_list.append(SongModel.genre.in_(genres))
     
+    logging.info("Sending a query to the DB")
     songs = SongModel.query.join(ArtistModel).filter(*query_list).all()
+
+    logging.info("Recevided results from the DB")
 
     results = [
         {
@@ -227,12 +230,12 @@ def handle_artists():
     """
     query = request.args.get('query').lower()
     
-    artists = ArtistModel.query.all()
+    artists = ArtistModel.query.with_entities(ArtistModel.id, ArtistModel.name).filter(ArtistModel.name.ilike(f"%{query}%")).all()
     results = [
         {
-            "id": artist.id,
-            "artist": artist.name,
-        } for artist in artists if query in artist.name.lower()]
+            "id": artist[0],
+            "artist": artist[1],
+        } for artist in artists]
     return {"results": results}
 
 @app.route('/api/songs/query_autocomplete')

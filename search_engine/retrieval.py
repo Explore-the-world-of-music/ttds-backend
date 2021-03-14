@@ -5,12 +5,12 @@ from collections import defaultdict, Counter
 import re
 from helpers.misc import create_default_dict_list
 import numpy as np
-from operator import itemgetter
+from operator import itemgetter, pos
 import time
 import datetime
 import csv
 import pandas as pd
-
+import logging
 
 def find_docs_with_term(term, index):
     """
@@ -395,6 +395,31 @@ def execute_search(query, indexer, preprocessor):
 
         return results, tfs_docs
 
+def get_pop_scores(SongModel, ArtistModel, song_ids, config):
+    """
+    :param SongModel 
+    :param ArtistModel
+    :param song_ids list of song ids
+    :param config current configuration
+    :return list of artist popularity scores 
+    """
+    pop_list = []
+    logging.info("Sending request to the DB")
+    pop_scores = SongModel.query.join(ArtistModel).filter(SongModel.id.in_(song_ids))
+    logging.info(pop_scores)
+    pop_scores = pop_scores.all()
+    logging.info("Got results from the DB")
+
+    if config["retrieval"]["result_checking"]:
+        for i, song in enumerate(song_ids):
+            print(f'The song id is {song}')
+            print(f'The song name is: {pop_scores[i].name}')
+            print(f'The artist name is: {pop_scores[i].artist.name}')
+            print(f' The popularity score for the artist is: {pop_scores[i].artist.rating}')
+            print(f' The popularity score for the song is: {pop_scores[i].rating}')
+            print("---------------------------------------------")
+
+    return pop_list
 
 def execute_queries_and_save_results(query, indexer, preprocessor, config, SongModel, ArtistModel,
                                      query_num = None):
@@ -458,7 +483,7 @@ def execute_queries_and_save_results(query, indexer, preprocessor, config, SongM
 
             # Get popularity scores for rel_dc
             rel_docs = [x[0] for x in rel_docs_with_tfidf_scaled]
-            pop_score = preprocessor.ret_popScore_list(SongModel, ArtistModel, rel_docs, config)
+            pop_score = get_pop_scores(SongModel, ArtistModel, rel_docs, config)
             if np.isnan(pop_score).sum() > 0:
                 print("WARNING: NA VALUES IN POPULARITY SCORE")
             print("Popularity score retrieved from database")
