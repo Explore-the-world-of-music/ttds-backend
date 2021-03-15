@@ -35,7 +35,6 @@ def get_rel_doc_pos(term, index):
     :return: positions of term for related doc ids (list of lists)
     """
     if term in index.keys():
-        #Todo: Double check implementation once it runs again
         rel_doc_pos = dict(zip(index[term][0], index[term][1]))
     else:
         rel_doc_pos = dict()
@@ -147,7 +146,6 @@ def simple_proximity_search(search_results, indexer, n=1, pos_asterisk=None, phr
     :param phrase: whether or not the search is a phrase search and ordering matters (bool)
     :return: List of all doc_ids which are relevant for proximity search (list)
     """
-    # Todo: Check running time for large sets of relevant documents and check efficiency improvements
     # Performs a boolean search to get documents which contain both terms
     terms = list(search_results.keys())
     rel_documents_all_terms = bool_search(search_results, indexer=indexer, bool_vals=["&&"] * (len(terms) - 1))
@@ -208,14 +206,23 @@ def simple_tfidf_search(terms, indexer):
     total_num_docs = indexer.total_num_docs
 
     for t in terms:
-        rel_docs = find_docs_with_term(t, indexer.index)
+        # Todo: Note optimizations here
+        # rel_docs = find_docs_with_term(t, indexer.index)
+        # df = len(rel_docs
+        # rel_doc_pos = get_rel_doc_pos(t, indexer.index)
+        # tfs_docs = [len(rel_doc_pos[key]) for key in rel_doc_pos]
+        # weights_docs = [(1 + np.log10(tf)) * np.log10(total_num_docs / df) for tf in tfs_docs]
+
+        logging.info(f'Calculations for {t}')
+        TIMESTAMP = datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+        logging.info(f'TIMESTAMP = {TIMESTAMP}')
+
+        tfs_docs = get_tfs_docs(t, indexer.index)
+        rel_docs = list(tfs_docs.keys())
         df = len(rel_docs)
-        rel_doc_pos = get_rel_doc_pos(t, indexer.index)
-        tfs_docs = [len(rel_doc_pos[key]) for key in rel_doc_pos]
-        weights_docs = [(1 + np.log10(tf)) * np.log10(total_num_docs / df) for tf in tfs_docs]
+        weights_docs = [(1 + np.log10(tfs_docs[key])) * np.log10(total_num_docs / df) for key in rel_docs]
 
         for doc_id, weight in zip(rel_docs, weights_docs):
-
             if doc_id not in doc_relevance:
                 doc_relevance[doc_id] = weight
             else:
@@ -223,7 +230,6 @@ def simple_tfidf_search(terms, indexer):
 
     sorted_relevance = sorted(doc_relevance.items(), key=lambda x: x[1], reverse=True)
     return sorted_relevance
-
 
 def calculate_tfidf(rel_docs, tfs_docs, indexer, logical_search):
     """
@@ -241,9 +247,9 @@ def calculate_tfidf(rel_docs, tfs_docs, indexer, logical_search):
     if logical_search:
 
         for query_component in tfs_docs.keys():
-            print(f'Calculations for {query_component}')
+            logging.info(f'Calculations for {query_component}')
             TIMESTAMP = datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-            print(f'TIMESTAMP = {TIMESTAMP}')
+            logging.info(f'TIMESTAMP = {TIMESTAMP}')
             # Extract the document frequency for the query component
             rel_docs_all = tfs_docs[query_component]["rel_docs"]
             df = len(rel_docs_all)
@@ -340,8 +346,10 @@ def execute_search(query, indexer, preprocessor):
 
         search_results = defaultdict(create_default_dict_list)
         for term in terms:
-            search_results[term]["rel_docs"], _ = execute_search(term, indexer, preprocessor)
+            # Todo: Note optimization here
+            # search_results[term]["rel_docs"], _ = execute_search(term, indexer, preprocessor)
             search_results[term]["rel_doc_pos"] = get_rel_doc_pos(preprocessor.preprocess(term)[0], indexer.index)
+            search_results[term]["rel_docs"] = list(search_results[term]["rel_doc_pos"].keys())
 
         rel_docs, tfs_docs = simple_proximity_search(search_results, indexer=indexer, n=n)
 
@@ -370,14 +378,15 @@ def execute_search(query, indexer, preprocessor):
 
         search_results = defaultdict(create_default_dict_list)
         for term in terms:
-            search_results[term]["rel_docs"], _ = execute_search(term, indexer, preprocessor)
+            # Todo: Note optimization here
+            # search_results[term]["rel_docs"], _ = execute_search(term, indexer, preprocessor)
             search_results[term]["rel_doc_pos"] = get_rel_doc_pos(preprocessor.preprocess(term)[0], indexer.index)
+            search_results[term]["rel_docs"] = list(search_results[term]["rel_doc_pos"].keys())
 
         if len(search_results.keys()) < 2:
+            # Todo: Note optimization here
             key = list(search_results.keys())[0]
             final_rel_doc_ids = search_results[key]["rel_docs"]
-            final_rel_doc_ids = sorted(list(set(final_rel_doc_ids)))
-
             # Convert results to appropriate output format
             tfs_docs = defaultdict(int, dict(Counter(final_rel_doc_ids)))
             for key2 in tfs_docs.keys():
@@ -385,13 +394,15 @@ def execute_search(query, indexer, preprocessor):
 
             return final_rel_doc_ids, tfs_docs
         else:
-            rel_docs, tfs_docs = simple_proximity_search(search_results, indexer=indexer, n=1, phrase=True, pos_asterisk = pos_asterisk)
+            rel_docs, tfs_docs = simple_proximity_search(search_results, indexer=indexer, n=1, phrase=True, pos_asterisk=pos_asterisk)
             return rel_docs, tfs_docs
 
     # if nothing else matches --> make a simple search
     else:
-        results = find_docs_with_term(preprocessor.preprocess(query)[0], indexer.index)
+        # Todo: Note optimization here
         tfs_docs = get_tfs_docs(preprocessor.preprocess(query)[0], indexer.index)
+        # results = find_docs_with_term(preprocessor.preprocess(query)[0], indexer.index)
+        results = list(tfs_docs.keys())
 
         return results, tfs_docs
 
@@ -410,12 +421,12 @@ def get_pop_scores(SongModel, ArtistModel, song_ids, config):
 
     if config["retrieval"]["result_checking"]:
         for i, song in enumerate(song_ids):
-            print(f'The song id is {song}')
-            print(f'The song name is: {pop_scores[i].name}')
-            print(f'The artist name is: {pop_scores[i].artist.name}')
-            print(f' The popularity score for the artist is: {pop_scores[i].artist.rating}')
-            print(f' The popularity score for the song is: {pop_scores[i].rating}')
-            print("---------------------------------------------")
+            logging.info(f'The song id is {song}')
+            logging.info(f'The song name is: {pop_scores[i].name}')
+            logging.info(f'The artist name is: {pop_scores[i].artist.name}')
+            logging.info(f' The popularity score for the artist is: {pop_scores[i].artist.rating}')
+            logging.info(f' The popularity score for the song is: {pop_scores[i].rating}')
+            logging.info("---------------------------------------------")
 
     return pop_scores
 
@@ -434,7 +445,7 @@ def execute_queries_and_save_results(query, indexer, preprocessor, config, SongM
     """
 
     dt_string_START = datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-    print(f'START date and time of SEARCH ENGINE = {dt_string_START}')
+    logging.info(f'START date and time of SEARCH ENGINE = {dt_string_START}')
 
     if preprocessor.replacement_patterns:
         query = preprocessor.replace_replacement_patterns(query)
@@ -453,13 +464,13 @@ def execute_queries_and_save_results(query, indexer, preprocessor, config, SongM
     if search_pattern.search(query) is not None:
         rel_docs, tfs_docs = execute_search(query, indexer, preprocessor)
         dt_string_START_RETRIEVAL = datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-        print(f'START date and time of TFIDF CALCULATION = {dt_string_START_RETRIEVAL}')
+        logging.info(f'START date and time of TFIDF CALCULATION = {dt_string_START_RETRIEVAL}')
         rel_docs_with_tfidf = calculate_tfidf(rel_docs, tfs_docs, indexer, logical_search)
     else:
         terms = query.split()
         terms = [preprocessor.preprocess(term)[0] for term in terms if len(preprocessor.preprocess(term)) > 0]
         dt_string_START_RETRIEVAL = datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-        print(f'START date and time of TFIDF CALCULATION = {dt_string_START_RETRIEVAL}')
+        logging.info(f'START date and time of TFIDF CALCULATION = {dt_string_START_RETRIEVAL}')
         rel_docs_with_tfidf = simple_tfidf_search(terms, indexer)
 
     if len(rel_docs_with_tfidf) > 0:
@@ -474,18 +485,16 @@ def execute_queries_and_save_results(query, indexer, preprocessor, config, SongM
 
         if config["retrieval"]["customized_ranking"]:
 
-            # Todo: Fix customized ranking, and then activate again
-
             dt_string_START_CUSTOMIZED_RANKING = datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-            print(f'START date and time of CUSTOMIZED RANKING ADJUSTMENT = {dt_string_START_CUSTOMIZED_RANKING}')
+            logging.info(f'START date and time of CUSTOMIZED RANKING ADJUSTMENT = {dt_string_START_CUSTOMIZED_RANKING}')
 
             # Get popularity scores for rel_dc
             rel_docs_with_tfidf_scaled = rel_docs_with_tfidf_scaled[:config["retrieval"]["customized_ranking_result_limit"]]
             rel_docs = [x[0] for x in rel_docs_with_tfidf_scaled]
             pop_score = get_pop_scores(SongModel, ArtistModel, rel_docs, config)
             if np.isnan(pop_score).sum() > 0:
-                print("WARNING: NA VALUES IN POPULARITY SCORE")
-            print("Popularity score retrieved from database")
+                logging.warning("WARNING: NA VALUES IN POPULARITY SCORE")
+            logging.info("Popularity score retrieved from database")
 
             # Get weighted average of popularity score and tfidf score
             rel_docs_score = [x[1] for x in rel_docs_with_tfidf_scaled]
@@ -497,12 +506,12 @@ def execute_queries_and_save_results(query, indexer, preprocessor, config, SongM
             rel_docs_with_tfidf_scaled.sort(key = lambda x: x[1], reverse=True)
 
             if config["retrieval"]["result_checking"]:
-                print("--------------------------------------------")
-                print(f'The relevant documents are {rel_docs}')
-                print(f'The pop score is {pop_score}')
-                print(f'The tfids score is {np.round(rel_docs_score,4)}')
-                print(f'The new score is {rel_docs_with_tfidf_scaled}')
-                print("--------------------------------------------")
+                logging.info("--------------------------------------------")
+                logging.info(f'The relevant documents are {rel_docs}')
+                logging.info(f'The pop score is {pop_score}')
+                logging.info(f'The tfids score is {np.round(rel_docs_score,4)}')
+                logging.info(f'The new score is {rel_docs_with_tfidf_scaled}')
+                logging.info("--------------------------------------------")
 
         # Only keep top results
         if len(rel_docs_with_tfidf_scaled) > config["retrieval"]["number_ranked_documents"]:
@@ -535,7 +544,7 @@ def execute_queries_and_save_results(query, indexer, preprocessor, config, SongM
             results_frame = pd.DataFrame()
 
         dt_string_END = datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-        print(f'END date and time of SEARCH ENGINE = {dt_string_END}')
+        logging.info(f'END date and time of SEARCH ENGINE = {dt_string_END}')
 
         return results, results_frame
 
@@ -544,6 +553,6 @@ def execute_queries_and_save_results(query, indexer, preprocessor, config, SongM
         results_frame = pd.DataFrame()
 
         dt_string_END = datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-        print(f'END date and time of SEARCH ENGINE = {dt_string_END}')
+        logging.info(f'END date and time of SEARCH ENGINE = {dt_string_END}')
 
         return results, results_frame
