@@ -49,11 +49,9 @@ class Indexer:
         """
         Function to save final index in a defined txt format
         """
-        # Todo: Observe if we need more efficient index storing methods
         if as_pickle:
             with open('index.pickle', 'wb') as file:
                 pickle.dump(self.index, file, protocol=pickle.HIGHEST_PROTOCOL)
-        # else: # Todo: Store always txt index as well for testing, reinstate else clause at some point
         with open("index.txt", "w", encoding="utf8") as text_output:
             for term in sorted(self.index.keys()):
                 text_output.write(f"{term}:{len(self.index[term])}\n")
