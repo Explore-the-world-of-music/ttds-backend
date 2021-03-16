@@ -264,6 +264,7 @@ def calculate_tfidf(rel_docs, tfs_docs, indexer, logical_search):
                 # Sum over all relevant documents
                 weights_docs = [(1 + np.log10(tf)) * np.log10(total_num_docs / df) for tf in tfs_docs_all]
             else:
+                docs_loop = []
                 weights_docs = []
 
             # Todo: Note optimization here
