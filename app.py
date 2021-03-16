@@ -177,7 +177,7 @@ def handle_songs():
     
     if artists != "":
         artists = artists.split(",")
-        query_list.append(SongModel.artist.in_(artists))
+        query_list.append(ArtistModel.id.in_(artists))
     
     if genres != "":
         genres = genres.split(",")
@@ -257,3 +257,80 @@ def handle_autocomplete():
     if results == None:
         results = []
     return {"suggestions": results}
+
+@app.route("/api/songs/get_lyrics")
+def handle_lyrics():
+    """
+    Returns a list of relevant songs
+    :param query: query text (str)
+    :param years: year range (list of int)
+    :param artist: artist (list of str)
+    :param genre: genres (list of str)
+    :return: results (json)
+    """
+    query = request.args.get("id", "")
+
+    print("Song ID:", query)
+
+    songs = SongModel.query.all()
+    print("songs:", songs)
+    results = [
+        {
+           "id": song.id,
+            "name": song.name,
+            "artist": song.artist.name,
+            "lyrics": song.lyrics,
+            "album": song.album,
+            "image": song.artist.image,
+            "rating": song.rating,
+            "released": song.released,
+            "genre": song.genre 
+        } for song in songs if int(query) == song.id
+    ]
+    # Extra preporcessing before lyrics are returned:
+    # 1. Replace all \\n with \n
+    # TODO: add different method for phrase search.
+    for song in results:
+        song["lyrics"] = song["lyrics"].replace("\\n", "\n")
+        split_lyrics = song["lyrics"].split("\n")
+       
+    # sort results based on their score
+    # results.sort(key= lambda x: result_dict[x["id"]], reverse=True)
+
+    recom_id = []
+
+    rec_eng = RecommendationEngine()
+    print("loading model....")
+    print("Current path is: ", os.getcwd())
+    rec_eng.load_model("word2vec2.model", "rec_model.pkl")
+
+    # print(rec_eng.find_similar_songs_known_song(int(query), 10))
+    recom_id = rec_eng.find_similar_songs_known_song(int(query), 10)
+    # output: [137760, 137761, 461554, 498408, 479446, 157127, 438013, 482450, 285817, 254288]
+    # recom_id = [503565, 492331, 513527]
+    recom_list = []
+    for song in songs:
+        # print("recom_list")
+        for rid in recom_id:
+            print(rid)
+            if rid == song.id:
+                recom = { "id": song.id,
+                    "name": song.name,
+                    "artist": song.artist.name,
+                    # "lyrics": rid.lyrics,
+                    "album": song.album,
+                    "image": song.artist.image,
+                    "rating": song.rating,
+                    "released": song.released,
+                    "genre": song.genre 
+                } 
+                recom_list.append(recom)
+    
+    
+
+
+    # results.append(recom_list)
+
+    results[0]['recommendations'] = recom_list
+
+    return results[0]

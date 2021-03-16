@@ -430,17 +430,18 @@ def get_pop_scores(SongModel, ArtistModel, song_ids, config):
     :return list of artist popularity scores 
     """
     logging.info("Sending request to the DB")
-    pop_scores = SongModel.query.join(ArtistModel).with_entities(ArtistModel.rating).filter(SongModel.id.in_(song_ids)).all()
-    pop_scores = [x[0] for x in pop_scores]
+    artists = SongModel.query.join(ArtistModel).with_entities(SongModel.id, ArtistModel.rating).filter(SongModel.id.in_(song_ids)).all()
+    mapping = {artist.id : artist.rating for artist in artists}
+    pop_scores = [mapping[n] for n in song_ids]
     logging.info("Got results from the DB")
 
     if config["retrieval"]["result_checking"]:
         for i, song in enumerate(song_ids):
             logging.info(f'The song id is {song}')
-            logging.info(f'The song name is: {pop_scores[i].name}')
-            logging.info(f'The artist name is: {pop_scores[i].artist.name}')
-            logging.info(f' The popularity score for the artist is: {pop_scores[i].artist.rating}')
-            logging.info(f' The popularity score for the song is: {pop_scores[i].rating}')
+            # logging.info(f'The song name is: {pop_scores[i].name}')
+            # logging.info(f'The artist name is: {pop_scores[i].artist.name}')
+            logging.info(f' The popularity score for the artist is: {pop_scores[i]}')
+            # logging.info(f' The popularity score for the song is: {pop_scores[i].rating}')
             logging.info("---------------------------------------------")
 
     return pop_scores
