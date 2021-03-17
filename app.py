@@ -2,11 +2,12 @@ from flask import Flask, jsonify, request
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
+from werkzeug.middleware.profiler import ProfilerMiddleware
 
 
 import os
 import logging
-import sys
+import pickle
 from datetime import datetime
 import pandas as pd
 
@@ -21,6 +22,12 @@ from search_engine.system_evaluation import get_true_positives, calculate_precis
 
 app = Flask(__name__)
 CORS(app)
+
+# if enabled, outputs all sql queries to the console
+app.config["SQLALCHEMY_ECHO"] = True 
+# uncomment these 2 lines to enable profiling
+# app.config['PROFILE'] = True
+# app.wsgi_app = ProfilerMiddleware(app.wsgi_app, restrictions=[30])
 
 if os.path.isfile(".password") and os.access(".password", os.R_OK):
     with open(".password", "r") as passfile:
@@ -40,8 +47,16 @@ from models.ArtistModel import ArtistModel
 # Stop time
 # Full run: 23 seconds
 # Run without creating but only loading index: 0-1 seconds
-dt_string_START = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-logging.warning(f"START date and time = {dt_string_START}")
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    handlers=[
+        logging.FileHandler("debug.log"),
+        logging.StreamHandler()
+    ]
+)
+
+logging.info("Start")
 
 # Load config
 config = load_yaml("config/config.yaml")
@@ -50,27 +65,38 @@ config = load_yaml("config/config.yaml")
 preprocessor = Preprocessor(config)
 
 # Load data
-doc_ids, raw_doc_data = preprocessor.load_data_from_db(SongModel, ArtistModel)
+# doc_ids, raw_doc_data = preprocessor.load_data_from_db(SongModel, ArtistModel)
+
+# with open("data.pickle", "rb") as song_file:
+#     doc_ids, raw_doc_data = pickle.load(song_file)
+
+# logging.info("Finished loading data")
 
 # Initiate indexer instance
 indexer = Indexer(config)
 
 # Build index
-indexer.build_index(preprocessor, doc_ids, raw_doc_data)
+# indexer.build_index(preprocessor, doc_ids, raw_doc_data)
+
+# logging.info("Finished building index")
 
 # Save index
-indexer.store_index()
+# indexer.store_index()
+
+# logging.info("Index saved")
 
 # Add doc ids as index attribute
-indexer.add_all_doc_ids(doc_ids)
-
+# indexer.add_all_doc_ids(doc_ids)
+total_num_docs = SongModel.query.with_entities(SongModel.id).count()
 # Load index (for testing)
-indexer.index = indexer.load_index()
+indexer.index = indexer.load_index(total_num_docs, False)
 qc = Query_Completer(n = 3)
-qc.load_model("./features/qc_model.pkl", "./features/qc_map_to_int.pkl",  "./features/qc_map_to_token.pkl")
+#qc.load_model("./features/qc_model.pkl", "./features/qc_map_to_int.pkl",  "./features/qc_map_to_token.pkl")
 
 wc = Word_Completer()
-wc.load_model("./features/wc_model.pkl")
+#wc.load_model("./features/wc_model.pkl")
+
+logging.info("Ready")
 
 @app.route("/")
 def handle_root():
@@ -78,8 +104,8 @@ def handle_root():
 
 @app.route("/api/songs/get_genres")
 def handle_genres():
-    results = db.session.query(SongModel.genre).group_by(SongModel.genre).all()
-    return {"genres": [result.genre for result in results if result.genre is not None]}
+    results = db.session.query(SongModel.genre).with_entities(SongModel.genre).group_by(SongModel.genre).all()
+    return {"genres": [result.genre for result in results if result[0] is not None]}
 
 @app.route("/api/songs/search")
 def handle_songs():
@@ -145,9 +171,10 @@ def handle_songs():
         df_evaluation_results.to_csv("system_evaluation/results_system_evaluation.csv", index=False)
 
     # Perform search to be shown in front end
+    logging.info("Starting index search")
     db_results, _ = execute_queries_and_save_results(query, indexer=indexer,preprocessor=preprocessor,
                                                      config=config, SongModel=SongModel, ArtistModel = ArtistModel)
-
+    logging.info("Index search complete")
     if db_results == None:
         return {"songs": []}
 
@@ -160,13 +187,15 @@ def handle_songs():
     
     if artists != "":
         artists = artists.split(",")
-        query_list.append(SongModel.artist._in(artists))
+        query_list.append(ArtistModel.id.in_(artists))
     
     if genres != "":
         genres = genres.split(",")
-        query_list.append(SongModel.genre._in(genres))
+        query_list.append(SongModel.genre.in_(genres))
     
+    logging.info("Sending a query to the DB")
     songs = SongModel.query.join(ArtistModel).filter(*query_list).all()
+    logging.info("Recevided results from the DB")
 
     results = [
         {
@@ -210,12 +239,12 @@ def handle_artists():
     """
     query = request.args.get('query').lower()
     
-    artists = ArtistModel.query.all()
+    artists = ArtistModel.query.with_entities(ArtistModel.id, ArtistModel.name).filter(ArtistModel.name.ilike(f"%{query}%")).all()
     results = [
         {
-            "id": artist.id,
-            "artist": artist.name,
-        } for artist in artists if query in artist.name.lower()]
+            "id": artist[0],
+            "artist": artist[1],
+        } for artist in artists]
     return {"results": results}
 
 @app.route('/api/songs/query_autocomplete')

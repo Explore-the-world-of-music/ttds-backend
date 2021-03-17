@@ -6,6 +6,8 @@ from nltk.stem import PorterStemmer
 import re
 import os
 import xml.etree.ElementTree as ET
+from tqdm import tqdm
+import pickle
 
 # Set path as needed for Preprocessor class
 path = os.path.abspath(__file__)
@@ -31,7 +33,9 @@ class Preprocessor():
     def load_data_from_db(self, song_model, artist_model):
         song_ids =[]
         data = []
-        for song in song_model.query.join(artist_model).all():
+        rows = song_model.query.count()
+
+        for song in tqdm(song_model.query.join(artist_model).all(), total = rows):
             song_ids.append(song.id)
 
             song_data = ""
@@ -47,28 +51,10 @@ class Preprocessor():
 
             data.append(song_data)
 
+        with open("data.pickle", "wb") as data_file:
+            pickle.dump((song_ids, data), data_file)
+                
         return song_ids, data
-
-    def ret_popScore_list(self, SongModel, ArtistModel, song_ids, config):
-        """
-        INPUT: List of Song IDs
-        OUTPUT: Return a list of Popularity scores (rating) for that song
-        """
-        pop_list = []
-
-        for song in song_ids:
-            pop_score = SongModel.query.join(ArtistModel).filter(SongModel.id == song).all()
-            pop_list.append(pop_score[0].artist.rating)
-
-            if config["retrieval"]["result_checking"]:
-                print(f'The song id is {song}')
-                print(f'The song name is: {pop_score[0].name}')
-                print(f'The artist name is: {pop_score[0].artist.name}')
-                print(f' The popularity score for the artist is: {pop_score[0].artist.rating}')
-                print(f' The popularity score for the song is: {pop_score[0].rating}')
-                print("---------------------------------------------")
-
-        return pop_list
 
     def replace_replacement_patterns(self, line):
         """
