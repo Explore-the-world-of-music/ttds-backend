@@ -430,7 +430,7 @@ def get_pop_scores(SongModel, ArtistModel, song_ids, config):
     :return list of artist popularity scores 
     """
     logging.info("Sending request to the DB")
-    artists = SongModel.query.join(ArtistModel).with_entities(SongModel.id, ArtistModel.rating).filter(SongModel.id.in_(song_ids)).all()
+    artists = SongModel.query.yield_per(100).join(ArtistModel).with_entities(SongModel.id, ArtistModel.rating).filter(SongModel.id.in_(song_ids)).all()
     mapping = {artist.id : artist.rating for artist in artists}
     pop_scores = [mapping[n] for n in song_ids]
     logging.info("Got results from the DB")
