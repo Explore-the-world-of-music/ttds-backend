@@ -165,7 +165,6 @@ def calculate_discounted_cumulative_gain(results_systems, results_true, rank):
     # Calculate the final nDCG for each rank and then filter on the rank
     df_dcg_combined["nDCG@" + str(rank)] = df_dcg_combined["DCG@k"] / df_dcg_combined["iDCG@k"]
 
-    # Todo: Discuss with Jannis
     nDCG_for_specified_rank = pd.DataFrame()
     for query in df_dcg_combined.query_number.unique():
 

@@ -134,7 +134,7 @@ def handle_songs():
                                                                          query_num=query_num)
             results_data_frame = results_data_frame.append(results_data_frame_tmp)
 
-        # Todo: Take out again once we have real values
+        # Todo: Replace by real values
         dummy_correct_results = results_data_frame[["query_number", "doc_number", "score"]].reset_index(drop=True)
         dummy_correct_results["relevance"] = [round(x, 0) for x in dummy_correct_results["score"]]
         dummy_correct_results.drop(columns=["score"], inplace=True)
