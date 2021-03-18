@@ -11,6 +11,7 @@ import datetime
 import csv
 import pandas as pd
 import logging
+import copy
 
 def find_docs_with_term(term, index):
     """
@@ -71,7 +72,7 @@ def get_tfs_docs_bool_search(search_results, bool_vals, indexer):
     """
     terms = list(search_results.keys())
     # Extract tfs for the first term as basis
-    tfs_docs = search_results.copy()
+    tfs_docs = copy.deepcopy(search_results)
 
     for idx, bool_val in enumerate(bool_vals):
 
@@ -85,7 +86,7 @@ def get_tfs_docs_bool_search(search_results, bool_vals, indexer):
             # Todo: Note improvement and correction here
             # Here we need to inverse the logic and return the documents that do not contain the term
             # rel_docs_new = sorted(set([doc_id for doc_id in indexer.all_doc_ids if doc_id not in tfs_docs[terms[idx + 1]]["rel_docs"]]))
-            rel_docs_new = sorted(set(range(1, indexer.total_num_docs + 1)) - set(tfs_docs[terms[idx + 1]]["rel_docs"]))
+            rel_docs_new = list(set(range(1, indexer.total_num_docs + 1)) - set(tfs_docs[terms[idx + 1]]["rel_docs"]))
 
             # As this represents only a weak search results, the term frequency is set to 0.5 as documents
             # that have true positives should be favored
@@ -108,7 +109,7 @@ def bool_search(search_results, indexer, bool_vals):
     """
     terms = list(search_results.keys())
     # Extract relevant documents for the first term as basis for boolean analysis
-    rel_docs = search_results[terms[0]]["rel_docs"].copy()
+    rel_docs = copy.deepcopy(search_results[terms[0]]["rel_docs"])
 
     for idx, bool_val in enumerate(bool_vals):
         if bool_val == "&&":
@@ -182,19 +183,23 @@ def simple_proximity_search(search_results, indexer, n=1, pos_asterisk=None, phr
             # For multiple terms delete all positions which are true across terms
             # Finally take the minimum true positions per term as the number for which the whole
             # phrase or proximity was found in the document
-            for idx in np.arange(len(terms[:-1])-1):
+            dict_candi_fin = copy.deepcopy(dict_candi)
+            for idx in np.arange(len(terms[:-1]) - 1):
+                counter = 0
                 for idx2, candi_1 in enumerate(dict_candi[idx]):
-                    candi_2 = [pos[0] for pos in dict_candi[idx+1]]
+                    candi_2 = [pos[0] for pos in dict_candi[idx + 1]]
                     if candi_1[1] not in candi_2:
-                        del dict_candi[idx][idx2]
-            max_cand = min([len(dict_candi[key]) for key in dict_candi.keys()])
-            for i in np.arange(max_cand):
-                final_rel_doc_ids.append(doc_id)
+                        del dict_candi_fin[idx][idx2 - counter]
+                        counter = counter + 1
+            if len(list(dict_candi_fin.keys())) > 0:
+                max_cand = min([len(dict_candi_fin[key]) for key in dict_candi.keys()])
+                for i in np.arange(max_cand):
+                    final_rel_doc_ids.append(doc_id)
 
     # Convert results to appropriate output format
     tfs_docs = dict(Counter(final_rel_doc_ids))
     tfs_docs = defaultdict(int, tfs_docs)
-    final_rel_doc_ids = sorted(list(set(final_rel_doc_ids)))
+    final_rel_doc_ids = list(set(final_rel_doc_ids))
 
     return final_rel_doc_ids, tfs_docs
 
@@ -229,7 +234,11 @@ def simple_tfidf_search(terms, indexer):
 
             TIMESTAMP = datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S:%f")
             logging.info(f'TIMESTAMP 2 = {TIMESTAMP}')
-            scale = np.log10(total_num_docs / df)
+
+            if total_num_docs == df:
+                scale = 1
+            else:
+                scale = np.log10(total_num_docs / df)
 
             # Todo: Note optimization here
             # weights_docs = [(1 + np.log10(tfs_docs[key])) * scale for key in rel_docs]
@@ -281,8 +290,11 @@ def calculate_tfidf(rel_docs, tfs_docs, indexer, logical_search):
                 # Todo: Note optimization here
                 # Extract the query component frequencies but only for the RELEVANT documents
                 # tfs_docs_all = [tfs_docs[query_component]["tfs_docs"][key] for key in rel_docs_all if key in rel_docs]
-                scale = np.log10(total_num_docs / df)
-                docs_loop = sorted(list(set(tfs_docs[query_component]["tfs_docs"].keys()).intersection(rel_docs)))
+                if total_num_docs == df:
+                    scale = 1
+                else:
+                    scale = np.log10(total_num_docs / df)
+                docs_loop = list(set(tfs_docs[query_component]["tfs_docs"].keys()).intersection(rel_docs))
                 tfs_docs_all = [tfs_docs[query_component]["tfs_docs"][key] for key in docs_loop]
 
                 # Sum over all relevant documents
