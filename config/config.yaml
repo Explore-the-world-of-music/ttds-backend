@@ -4,8 +4,9 @@ preprocessing:
   use_replacement_patterns: True
 retrieval:
   number_ranked_documents: 10
-  result_checking: False
+  result_checking: True
   customized_ranking: True
-  weight_popularity_score: 0.3
+  weight_artist_popularity: 0.2
+  weight_song_popularity: 0.1
   perform_system_evaluation: False
-  customized_ranking_result_limit: 1000
+  customized_ranking_result_limit: 100
