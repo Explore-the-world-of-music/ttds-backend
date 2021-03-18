@@ -276,12 +276,12 @@ def calculate_tfidf(rel_docs, tfs_docs, indexer, logical_search):
             # Extract the document frequency for the query component
             rel_docs_all = tfs_docs[query_component]["rel_docs"]
             df = len(rel_docs_all)
-            scale = np.log10(total_num_docs / df)
 
             if df > 0:
                 # Todo: Note optimization here
                 # Extract the query component frequencies but only for the RELEVANT documents
                 # tfs_docs_all = [tfs_docs[query_component]["tfs_docs"][key] for key in rel_docs_all if key in rel_docs]
+                scale = np.log10(total_num_docs / df)
                 docs_loop = sorted(list(set(tfs_docs[query_component]["tfs_docs"].keys()).intersection(rel_docs)))
                 tfs_docs_all = [tfs_docs[query_component]["tfs_docs"][key] for key in docs_loop]
 
