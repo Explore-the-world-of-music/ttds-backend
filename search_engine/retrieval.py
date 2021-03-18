@@ -235,11 +235,7 @@ def simple_tfidf_search(terms, indexer):
             TIMESTAMP = datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S:%f")
             logging.info(f'TIMESTAMP 2 = {TIMESTAMP}')
 
-            if total_num_docs == df:
-                scale = 1
-            else:
-                scale = np.log10(total_num_docs / df)
-
+            scale = np.log10(total_num_docs / df)
             # Todo: Note optimization here
             # weights_docs = [(1 + np.log10(tfs_docs[key])) * scale for key in rel_docs]
             weights_docs = [(1 + np.log10(value)) * scale for key, value in tfs_docs.items()]
@@ -260,7 +256,8 @@ def simple_tfidf_search(terms, indexer):
         #     else:
         #         doc_relevance[doc_id] += weight
 
-    sorted_relevance = sorted(doc_relevance.items(), key=lambda x: x[1], reverse=True)
+    sorted_relevance = sorted(doc_relevance.items(), key=lambda x: float(x[0]), reverse=False)
+    sorted_relevance = sorted(sorted_relevance, key=lambda x: x[1], reverse=True)
     return sorted_relevance
 
 def calculate_tfidf(rel_docs, tfs_docs, indexer, logical_search):
@@ -290,10 +287,7 @@ def calculate_tfidf(rel_docs, tfs_docs, indexer, logical_search):
                 # Todo: Note optimization here
                 # Extract the query component frequencies but only for the RELEVANT documents
                 # tfs_docs_all = [tfs_docs[query_component]["tfs_docs"][key] for key in rel_docs_all if key in rel_docs]
-                if total_num_docs == df:
-                    scale = 1
-                else:
-                    scale = np.log10(total_num_docs / df)
+                scale = np.log10(total_num_docs / df)
                 docs_loop = list(set(tfs_docs[query_component]["tfs_docs"].keys()).intersection(rel_docs))
                 tfs_docs_all = [tfs_docs[query_component]["tfs_docs"][key] for key in docs_loop]
 
@@ -312,7 +306,8 @@ def calculate_tfidf(rel_docs, tfs_docs, indexer, logical_search):
                     doc_relevance[doc_id] += weight
 
         # Sort values
-        sorted_relevance = sorted(doc_relevance.items(), key=lambda x: x[1], reverse=True)
+        sorted_relevance = sorted(doc_relevance.items(), key=lambda x: float(x[0]), reverse=False)
+        sorted_relevance = sorted(sorted_relevance, key=lambda x: x[1], reverse=True)
     else:
         # Only one search component
         df = len(rel_docs)  # document frequency
@@ -333,7 +328,8 @@ def calculate_tfidf(rel_docs, tfs_docs, indexer, logical_search):
             doc_relevance[doc_id] = weight
 
         # Sort values
-        sorted_relevance = sorted(doc_relevance.items(), key=lambda x: x[1], reverse=True)
+        sorted_relevance = sorted(doc_relevance.items(), key=lambda x: float(x[0]), reverse=False)
+        sorted_relevance = sorted(sorted_relevance, key=lambda x: x[1], reverse=True)
 
     return sorted_relevance
 
@@ -515,10 +511,13 @@ def execute_queries_and_save_results(query, indexer, preprocessor, config, SongM
         # Rescale the results. For queries with "OR NOT" it can happen that the difference in scores between the
         # documents are very low (0.0001). To interpret results easier we re-scale here based on the highest score
         max_value = max(rel_docs_with_tfidf, key=itemgetter(1))[1]
-        rel_docs_with_tfidf_scaled = list()
-        for idx, _ in enumerate(rel_docs_with_tfidf):
-            rel_docs_with_tfidf_scaled.append(
-                (rel_docs_with_tfidf[idx][0], rel_docs_with_tfidf[idx][1] / max_value * 10))
+        if max_value < 0.00001:
+            rel_docs_with_tfidf_scaled = list()
+        else:
+            rel_docs_with_tfidf_scaled = list()
+            for idx, _ in enumerate(rel_docs_with_tfidf):
+                rel_docs_with_tfidf_scaled.append(
+                    (rel_docs_with_tfidf[idx][0], rel_docs_with_tfidf[idx][1] / max_value * 10))
 
         if config["retrieval"]["customized_ranking"]:
 
