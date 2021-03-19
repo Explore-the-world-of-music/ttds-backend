@@ -14,7 +14,7 @@ class SongModel(db.Model):
     released = db.Column(db.Integer())
     rating = db.Column(db.SmallInteger())
     genre = db.Column(db.String())
-    
+    language = db.Column(db.String())
     
     artist = db.relationship("ArtistModel")
 

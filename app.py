@@ -96,6 +96,10 @@ qc = Query_Completer(n = 3)
 wc = Word_Completer()
 #wc.load_model("./features/wc_model.pkl")
 
+genres = db.session.query(SongModel.genre).with_entities(SongModel.genre).group_by(SongModel.genre).all()
+languages = db.session.query(SongModel.language).with_entities(SongModel.language).group_by(SongModel.language).all()
+
+
 logging.info("Ready")
 
 @app.route("/")
@@ -104,8 +108,11 @@ def handle_root():
 
 @app.route("/api/songs/get_genres")
 def handle_genres():
-    results = db.session.query(SongModel.genre).with_entities(SongModel.genre).group_by(SongModel.genre).all()
-    return {"genres": [result.genre for result in results if result[0] is not None]}
+    return {"genres": [result.genre for result in genres if result[0] is not None]}
+
+@app.route("/api/songs/get_languages")
+def handle_languages():
+    return {"genres": [result.language for result in languages if result[0] is not None]}
 
 @app.route("/api/songs/search")
 def handle_songs():
@@ -121,6 +128,7 @@ def handle_songs():
     years = request.args.get("years", "1960, 2021")
     artists = request.args.get("artists", "")
     genres = request.args.get("genres", "")
+    language = request.args.get("language", "")
 
     if config["retrieval"]["perform_system_evaluation"]:
         print("Perform system evaluation")
@@ -131,10 +139,10 @@ def handle_songs():
             _, results_data_frame_tmp = execute_queries_and_save_results(query, indexer=indexer,preprocessor=preprocessor,
                                                                          config=config, SongModel=SongModel,
                                                                          ArtistModel = ArtistModel,
-                                                                         query_num=query_num)
+                                                                         query_num=query_num, rel_docs = list(indexer.index.keys()))
             results_data_frame = results_data_frame.append(results_data_frame_tmp)
 
-        # Todo: Replace by real values
+        # Todo: Take out again once we have real values
         dummy_correct_results = results_data_frame[["query_number", "doc_number", "score"]].reset_index(drop=True)
         dummy_correct_results["relevance"] = [round(x, 0) for x in dummy_correct_results["score"]]
         dummy_correct_results.drop(columns=["score"], inplace=True)
@@ -170,20 +178,11 @@ def handle_songs():
         print(f' The evaluation results are:\n {df_evaluation_results}')
         df_evaluation_results.to_csv("system_evaluation/results_system_evaluation.csv", index=False)
 
-    # Perform search to be shown in front end
-    logging.info("Starting index search")
-    db_results, _ = execute_queries_and_save_results(query, indexer=indexer,preprocessor=preprocessor,
-                                                     config=config, SongModel=SongModel, ArtistModel = ArtistModel)
-    logging.info("Index search complete")
-    if db_results == None:
-        return {"songs": []}
-
-    result_dict = {id: score for id, score in db_results} # converting tuples into a dictionary
-
-    query_list = [SongModel.id.in_(result_dict.keys())]
+    query_list = []
     if years !="":
         years = years.split(",")
-        query_list.append(SongModel.released.between(int(years[0]), int(years[1])) )
+        if int(years[0]) != 1960 or int(years[1]) != 2021:
+            query_list.append(SongModel.released.between(int(years[0]), int(years[1])))
     
     if artists != "":
         artists = artists.split(",")
@@ -193,9 +192,30 @@ def handle_songs():
         genres = genres.split(",")
         query_list.append(SongModel.genre.in_(genres))
     
-    logging.info("Sending a query to the DB")
-    songs = SongModel.query.join(ArtistModel).filter(*query_list).all()
-    logging.info("Recevided results from the DB")
+    if language != "":
+        language = language.split(",")
+        query_list.append(SongModel.language.in_(language))
+    
+    logging.info("Sending a query to the DB with advanced options filter")
+    if len(query_list) > 0:
+        filtered_songs = SongModel.query.with_entities(SongModel.id).join(ArtistModel).filter(*query_list).all()
+        filtered_songs = set(song for (song,) in filtered_songs)
+    else:
+        filtered_songs = set(range(1, indexer.total_num_docs+1))
+    logging.info("Recevided results from the DB with advanced options filter")
+    
+    # Perform search to be shown in front end
+    logging.info("Starting index search")
+    db_results, _ = execute_queries_and_save_results(query, indexer=indexer,preprocessor=preprocessor,
+                                                     config=config, SongModel=SongModel, ArtistModel = ArtistModel, rel_songs= filtered_songs)
+    logging.info("Index search complete")
+    if db_results == None:
+        return {"songs": []}
+
+    result_dict = {id: score for id, score in db_results} # converting tuples into a dictionary
+    logging.info("Getting relevant songs from DB")
+    songs = SongModel.query.join(ArtistModel).filter(SongModel.id.in_(result_dict.keys())).all()
+    logging.info("Done")
 
     results = [
         {
@@ -239,7 +259,7 @@ def handle_artists():
     """
     query = request.args.get('query').lower()
     
-    artists = ArtistModel.query.with_entities(ArtistModel.id, ArtistModel.name).filter(ArtistModel.name.ilike(f"%{query}%")).all()
+    artists = ArtistModel.query.with_entities(ArtistModel.id, ArtistModel.name).filter(ArtistModel.name.ilike(f"%{query}%")).limit(50).all()
     results = [
         {
             "id": artist[0],
@@ -259,7 +279,6 @@ def handle_autocomplete():
 
     # if ends with a space predict the next word, otherwise predict the rest of the current word
     if query[-1] == " ":
-        print("!", query[:-1], "!")
         results = qc.predict_next_token(query[:-1])
     else:
         results = wc.predict_token(query, 5)

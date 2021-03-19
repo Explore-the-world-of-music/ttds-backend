@@ -72,7 +72,7 @@ class Indexer:
             # Initialise empty dictionary to store index
             index = {}
             with open('index.txt', "r", encoding="utf8") as f:
-                for line in tqdm(f, total=55967099):
+                for line in tqdm(f, total=47300935):
                     if '\t' not in line:
                         current_key = re.findall(r"[\w']+", line)[0]
                         index[current_key] = (array("I"), [])
