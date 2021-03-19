@@ -139,7 +139,7 @@ def handle_songs():
             _, results_data_frame_tmp = execute_queries_and_save_results(query, indexer=indexer,preprocessor=preprocessor,
                                                                          config=config, SongModel=SongModel,
                                                                          ArtistModel = ArtistModel,
-                                                                         query_num=query_num, rel_docs = list(indexer.index.keys()))
+                                                                         query_num=query_num, rel_docs = set(range(1, indexer.total_num_docs+1)))
             results_data_frame = results_data_frame.append(results_data_frame_tmp)
 
         # Todo: Take out again once we have real values
