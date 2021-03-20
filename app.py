@@ -1,24 +1,24 @@
-from flask import Flask, jsonify, request
-from flask_cors import CORS
-from flask_sqlalchemy import SQLAlchemy
-from flask_migrate import Migrate
-from werkzeug.middleware.profiler import ProfilerMiddleware
-
-
-import os
 import logging
+import os
 import pickle
 from datetime import datetime
+
 import pandas as pd
+from flask import Flask, jsonify, request
+from flask_cors import CORS
+from flask_migrate import Migrate
+from flask_sqlalchemy import SQLAlchemy
+from werkzeug.middleware.profiler import ProfilerMiddleware
 
 from ETL.preprocessing import Preprocessor
 from features.ngram_model import Query_Completer
 from features.word_completion import Word_Completer
-from helpers.misc import load_yaml, load_queries
+from helpers.misc import load_queries, load_yaml
 from search_engine.indexer import Indexer
 from search_engine.retrieval import execute_queries_and_save_results
-from search_engine.system_evaluation import get_true_positives, calculate_precision, calculate_recall, \
-    calculate_average_precision, calculate_discounted_cumulative_gain
+from search_engine.system_evaluation import (
+    calculate_average_precision, calculate_discounted_cumulative_gain,
+    calculate_precision, calculate_recall, get_true_positives)
 
 app = Flask(__name__)
 CORS(app)
@@ -40,9 +40,9 @@ app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
 
+from models.ArtistModel import ArtistModel
 # Import the models after the database is initialised
 from models.SongModel import SongModel
-from models.ArtistModel import ArtistModel
 
 # Stop time
 # Full run: 23 seconds
@@ -108,11 +108,11 @@ def handle_root():
 
 @app.route("/api/songs/get_genres")
 def handle_genres():
-    return {"genres": [result.genre for result in genres if result[0] is not None]}
+    return [result.genre for result in genres if result[0] is not None]
 
 @app.route("/api/songs/get_languages")
 def handle_languages():
-    return {"genres": [result.language for result in languages if result[0] is not None]}
+    return [result.language for result in languages if result[0] is not None]
 
 @app.route("/api/songs/search")
 def handle_songs():
@@ -285,3 +285,51 @@ def handle_autocomplete():
     if results == None:
         results = []
     return {"suggestions": results}
+
+
+@app.route("/api/songs/get_lyrics")
+# http://127.0.0.1:5000/api/songs/get_lyrics?id=1
+def handle_lyrics():
+    """
+    Returns song lyrics and metadata
+    :param query: song id (int)
+    :return: results (json)
+    """
+    id = request.args.get("id", "")
+
+    result = SongModel.query.filter(SongModel.id == id).scalar()
+    
+    results = {
+            "id": result.id,
+            "name": result.name,
+            "artist": result.artist.name,
+            "lyrics": result.lyrics,
+            "album": result.album,
+            "image": result.artist.image,
+            "rating": result.rating,
+            "released": result.released,
+            "genre": result.genre,
+            "bpm": result.bpm,
+            "key": result.key,
+            "topic_id": result.topic_id,
+            "length": result.length,
+            "language": result.language
+        } 
+
+    recom_id = [results.rec1, results.rec2, 
+                results.rec3, results.rec4,
+                results.rec5]
+
+    recom_list = []
+    recom_songs = SongModel.query.join(ArtistModel).filter(SongModel.id.in_(recom_id)).all()
+    recom = [{ "id": r.id,
+        "name": r.name,
+        "artist": r.artist.name,
+        "album": r.album,
+        "image": r.artist.image,
+    } for r in recom_songs]
+    recom_list.append(recom)
+
+    results["recommendations"] = recom_list
+
+    return results
