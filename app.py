@@ -316,9 +316,9 @@ def handle_lyrics():
             "language": result.language
         } 
 
-    recom_id = [results.rec1, results.rec2, 
-                results.rec3, results.rec4,
-                results.rec5]
+    recom_id = [result.rec1, result.rec2, 
+                result.rec3, result.rec4,
+                result.rec5]
 
     recom_list = []
     recom_songs = SongModel.query.join(ArtistModel).filter(SongModel.id.in_(recom_id)).all()
