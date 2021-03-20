@@ -108,11 +108,11 @@ def handle_root():
 
 @app.route("/api/songs/get_genres")
 def handle_genres():
-    return [result.genre for result in genres if result[0] is not None]
+    return {"response": [result.genre for result in genres if result[0] is not None]}
 
 @app.route("/api/songs/get_languages")
 def handle_languages():
-    return [result.language for result in languages if result[0] is not None]
+    return {"response": [result.language for result in languages if result[0] is not None]}
 
 @app.route("/api/songs/search")
 def handle_songs():
