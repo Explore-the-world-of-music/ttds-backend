@@ -42,15 +42,15 @@ class Word_Completer():
         :param lyrics: The lyrics (str)
         """
 
-        query_parts = query.lower().split()
+        query_parts = query.split()
         query_prior = " ".join(query_parts[:-1])
-        query_relevant = query_parts[-1] # Extract the last token
+        query_relevant = query_parts[-1].lower() # Extract the last token
 
         # retrieve all key which start with the given substring and are not exactly the substring (sorted by number of occurrences)
         sorted_counts = sorted([(key, value) for key, value in self.token_counter.items() if key.startswith(query_relevant) and key is not query_relevant], reverse= True, key=lambda x: x[1])
         
         # select the n most common tokens and return them
-        n_results = [query_prior + " " + token for token, count in sorted_counts[0:n]]
+        n_results = [(query_prior + " ").lstrip() + token for token, count in sorted_counts[0:n]]
         return n_results
 
 

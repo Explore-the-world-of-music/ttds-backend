@@ -91,10 +91,10 @@ total_num_docs = SongModel.query.with_entities(SongModel.id).count()
 # Load index (for testing)
 indexer.index = indexer.load_index(total_num_docs, False)
 qc = Query_Completer(n = 3)
-#qc.load_model("./features/qc_model.pkl", "./features/qc_map_to_int.pkl",  "./features/qc_map_to_token.pkl")
+qc.load_model("./features/qc_model.pkl", "./features/qc_map_to_int.pkl",  "./features/qc_map_to_token.pkl")
 
 wc = Word_Completer()
-#wc.load_model("./features/wc_model.pkl")
+wc.load_model("./features/wc_model.pkl")
 
 genres = db.session.query(SongModel.genre).with_entities(SongModel.genre).group_by(SongModel.genre).all()
 languages = db.session.query(SongModel.language).with_entities(SongModel.language).group_by(SongModel.language).all()
@@ -120,7 +120,7 @@ def handle_songs():
     Returns a list of relevant songs
     :param query: query text (str)
     :param years: year range (list of int)
-    :param artist: artist (list of str)
+    :param artists: artists (list of str)
     :param genre: genres (list of str)
     :return: results (json)
     """
@@ -186,7 +186,7 @@ def handle_songs():
     
     if artists != "":
         artists = artists.split(",")
-        query_list.append(ArtistModel.id.in_(artists))
+        query_list.append(ArtistModel.name.in_(artists))
     
     if genres != "":
         genres = genres.split(",")
@@ -259,11 +259,10 @@ def handle_artists():
     """
     query = request.args.get('query').lower()
     
-    artists = ArtistModel.query.with_entities(ArtistModel.id, ArtistModel.name).filter(ArtistModel.name.ilike(f"%{query}%")).limit(50).all()
+    artists = ArtistModel.query.with_entities(ArtistModel.name).filter(ArtistModel.name.ilike(f"%{query}%")).limit(50).all()
     results = [
         {
-            "id": artist[0],
-            "artist": artist[1],
+            "artist": artist[0],
         } for artist in artists]
     return {"results": results}
 
@@ -276,6 +275,9 @@ def handle_autocomplete():
     """
 
     query = request.args.get('query')
+
+    if "&" in query or "|" in query or "#" in query or "\"" in query:
+        return {"suggestions": []} 
 
     # if ends with a space predict the next word, otherwise predict the rest of the current word
     if query[-1] == " ":
@@ -320,15 +322,13 @@ def handle_lyrics():
                 result.rec3, result.rec4,
                 result.rec5]
 
-    recom_list = []
     recom_songs = SongModel.query.join(ArtistModel).filter(SongModel.id.in_(recom_id)).all()
-    recom = [{ "id": r.id,
+    recom_list = [{ "id": r.id,
         "name": r.name,
         "artist": r.artist.name,
         "album": r.album,
         "image": r.artist.image,
     } for r in recom_songs]
-    recom_list.append(recom)
 
     results["recommendations"] = recom_list
 
