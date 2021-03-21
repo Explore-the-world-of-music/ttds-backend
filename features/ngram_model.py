@@ -46,18 +46,16 @@ class Query_Completer():
             if idx-self.n <= -1:
                 # Left padding the first n-1 observations
                 existing_words = sentence[0:idx+1]
+                cur_list =  [None] * (self.n-len(existing_words)) + existing_words
 
-                # TODO Replace "None" with something different
-                cur_list =  ["None"] * (self.n-len(existing_words)) + existing_words
-
-                if "None" in cur_list:
+                if None in cur_list:
                     ngram_list.append(tuple(cur_list))
 
             elif idx+self.n > (len(sentence)):
 
                 # Right padding the last n-1 observations
                 existing_words = sentence[idx:len(sentence)]
-                cur_list = existing_words + ["None"] * (self.n-len(existing_words))
+                cur_list = existing_words + [None] * (self.n-len(existing_words))
                 ngram_list.append(tuple(cur_list))
 
             else:
@@ -105,6 +103,18 @@ class Query_Completer():
             self.add_single_lyric(lyrics)
 
 
+    def add_lyrics_linewise(self, lyrics):
+        '''
+        Function which splits the lyrics into sepetate lines and passes it to add_single_lyric(line)
+        :param lyrics: The lyrics (str)
+        '''
+
+        # Create "own" documents for each line
+        splitted_lines = [line for line in lyrics.split("\n") if line]
+        for line in splitted_lines:
+            self.add_single_lyric(line)
+
+
     def predict_next_token(self, current_query):
         """
         Function which returns most probable next words based on the model
@@ -115,27 +125,37 @@ class Query_Completer():
         query_token_list = self.tokenize_lyrics(current_query)
 
 
+        if len(query_token_list) == 0:
+            last_m_tokens = [None] * self.n-1
 
-        if len(query_token_list) < self.n-1:
-            # If not enough tokens in query
-            return None
+        elif len(query_token_list) < self.n-1:
+            # If not enough tokens in query add padding and predict token
+            num_difference = self.n-1 - len(query_token_list)
+            last_m_tokens = [None] * num_difference + query_token_list
 
-        # extracts the last m = n-1 tokens from the token list
-        last_m_tokens = query_token_list[-(self.n-1):]
+        else:
+            # extracts the last m = n-1 tokens from the token list
+            last_m_tokens = query_token_list[-(self.n-1):]
+
 
         query_mapping = [0]*len(last_m_tokens)
-
         # Finds mapping for existing token but leaves 0 = None for each non existing token
         for idx, q_token in enumerate(last_m_tokens):
             try:
                 query_mapping[idx] = self.mapping_to_int[q_token]
             except KeyError:
                 continue
-
+        
         results = dict(self.model[tuple(query_mapping)]) # returns the relevant dict of the model
         
         # Sorts the keys by the value and returns them with the most probable word in the first position
-        sorted_result = [current_query + " " + self.mapping_to_token[int_map] for int_map, v in sorted(results.items(), key=lambda item: item[1],reverse = True)[0:5]]        
+        sorted_result = []
+        for int_map, _ in sorted(results.items(), key=lambda item: item[1],reverse = True):
+            if int_map != 0: # Not None
+                sorted_result.append(current_query + " " + self.mapping_to_token[int_map]) 
+            if len(sorted_result) == 5:
+                break
+
         return sorted_result
 
 
@@ -179,7 +199,6 @@ class Query_Completer():
     def reduce_model(self, cutoff):
         """
         Function which reduces the model by removing the identifiers which occured less than 'cutoff' times
-
         :param cutoff: Number indicating the least amount of occurrences to keep
         """
        
@@ -213,6 +232,38 @@ class Query_Completer():
         for x in to_delete:
             del self.mapping_to_int[self.mapping_to_token[x]]    
             del self.mapping_to_token[x]
+
+
+'''
+# Set path as needed for Query_Completer class
+abspath = os.path.abspath(__file__)
+dname = os.path.dirname(abspath)
+os.chdir(dname)
+import pandas as pd
+qc = Query_Completer(n = 3)
+data = pd.read_csv("data-song_v1.csv")
+begin = time.time()
+for ids, (idx, row) in enumerate(data.iterrows()):
+    if ids%1000 == 0:
+        print(f"{ids} out of {data.shape[0]}", end='\r')
+    qc.add_lyrics_linewise(row["SongLyrics"])
+qc.save_model(model_filepath = "qc_model_untrimmed.pkl", map_to_int_filepath = "qc_map_to_int_untrimmed.pkl", map_to_token_filepath = "qc_map_to_token.pkl_untrimmed")
+print(f"Training and saving took: {time.time() - begin}")
+qc.reduce_model(5)
+qc.save_model()
+qc.load_model()
+print("Predicting")
+begin = time.time()
+print(qc.predict_next_token("In"))
+print(qc.predict_next_token("Cinq six sept"))
+print(qc.predict_next_token("to shame"))
+print(qc.predict_next_token("New"))
+print(qc.predict_next_token("Oops I"))
+print(qc.predict_next_token("Oops"))
+print(qc.predict_next_token("My loneliness"))
+print(qc.predict_next_token("Es ragen aus ihrem aufgeschlitzten Bauch"))
+print(f"Prediction took took: {time.time() - begin}")
+'''
 
 # Set path as needed for Query_Completer class
 # abspath = os.path.abspath(__file__)
