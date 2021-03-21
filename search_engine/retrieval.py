@@ -350,7 +350,7 @@ def execute_search(query, indexer, preprocessor, rel_songs):
         search_results = defaultdict(create_default_dict_list)
         for idx, term in enumerate(terms):
             key = term + "_" + str(idx)
-            search_results[key]["rel_doc_pos"] = get_rel_doc_pos(preprocessor.preprocess(term)[0], indexer.index)
+            search_results[key]["rel_doc_pos"] = get_rel_doc_pos(preprocessor.preprocess(term)[0], indexer.index, rel_songs)
             search_results[key]["rel_docs"] = list(search_results[key]["rel_doc_pos"].keys())
 
         rel_docs, tfs_docs = simple_proximity_search(search_results, indexer=indexer, rel_songs=rel_songs, n=n)
