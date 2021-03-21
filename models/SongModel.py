@@ -14,7 +14,16 @@ class SongModel(db.Model):
     released = db.Column(db.Integer())
     rating = db.Column(db.SmallInteger())
     genre = db.Column(db.String())
-    
+    language = db.Column(db.String())
+    length = db.Column(db.Integer())
+    bpm = db.Column(db.Integer())
+    key = db.Column(db.Integer())
+    topic_id = db.Column(db.Integer())
+    rec1 = db.Column(db.Integer())
+    rec2 = db.Column(db.Integer())
+    rec3 = db.Column(db.Integer())
+    rec4 = db.Column(db.Integer())
+    rec5 = db.Column(db.Integer())
     
     artist = db.relationship("ArtistModel")
 

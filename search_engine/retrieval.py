@@ -13,61 +13,70 @@ import pandas as pd
 import logging
 import copy
 
-def find_docs_with_term(term, index):
-    """
-    Returns all doc_ids which contain the "term".
-    :param term: The searched term (str)
-    :param index: Index in which to search (dict)
-    :return: list of relevant doc ids (list)
-    """
-    if term in index.keys():
-        rel_doc_ids = list(index[term][0])
-    else:
-        rel_doc_ids = []
+# def find_docs_with_term(term, index):
+#     """
+#     Returns all doc_ids which contain the "term".
+#     :param term: The searched term (str)
+#     :param index: Index in which to search (dict)
+#     :return: list of relevant doc ids (list)
+#     """
+#     if term in index.keys():
+#         rel_doc_ids = list(index[term][0])
+#     else:
+#         rel_doc_ids = []
 
-    return rel_doc_ids
+#     return rel_doc_ids
 
 
-def get_rel_doc_pos(term, index):
+def get_rel_doc_pos(term, index, rel_songs):
     """
     Returns all relevant doc_positions of a term
     :param term: The searched term (str)
     :param index: Index in which to search (dict)
+    :param rel_songs: Relevant songs (list)
     :return: positions of term for related doc ids (list of lists)
     """
-    if term in index.keys():
+    if term in index.keys(): 
         rel_doc_pos = dict(zip(index[term][0], index[term][1]))
+        keys = set(rel_doc_pos.keys()) -rel_songs
+        for key in keys:
+            rel_doc_pos.pop(key, None)
+        rel_doc_pos = defaultdict(int, rel_doc_pos)
     else:
         rel_doc_pos = dict()
 
     return rel_doc_pos
 
 
-def get_tfs_docs(term, index):
+def get_tfs_docs(term, index, rel_songs):
     """
     Returns term frequencies of a term in the documents
     :param term: The searched term (str)
     :param index: Index in which to search (dict)
+    :param rel_songs: Relevant songs (list)
     :return: term frequencies of term for related doc ids (dict)
     """
     if term in index.keys():
+        #tfs_docs = {index[term][0][i] : len(index[term][1][i]) for i in range(len(index[term][0])) if index[term][0][i] in rel_songs}
         tfs_docs = dict(zip(index[term][0], index[term][1]))
-        tfs_docs = defaultdict(int, tfs_docs)
         for doc in tfs_docs.keys():
             tfs_docs[doc] = len(tfs_docs[doc])
+        keys = set(tfs_docs.keys()) -rel_songs
+        for key in keys:
+            tfs_docs.pop(key, None)
+        tfs_docs = defaultdict(int, tfs_docs)
     else:
         tfs_docs = dict()
         tfs_docs = defaultdict(int, tfs_docs)
-
     return tfs_docs
 
 
-def get_tfs_docs_bool_search(search_results, bool_vals, indexer):
+def get_tfs_docs_bool_search(search_results, bool_vals, rel_songs):
     """
     Returns term frequencies of a boolean query
     :param search_results: Results of document and tfs for each individual search term (dict)
     :param bool_vals: List of "&&", "&&--" or "||" or "||--" (list)
-    :param indexer: Class instance for the created index (Indexer)
+    :param rel_songs: Relevant songs (list)
     :return: term frequencies which are relevant for this boolean search (dict)
     """
     terms = list(search_results.keys())
@@ -84,7 +93,7 @@ def get_tfs_docs_bool_search(search_results, bool_vals, indexer):
 
         elif bool_val == "||--":
             # Here we need to inverse the logic and return the documents that do not contain the term
-            rel_docs_new = list(set(range(1, indexer.total_num_docs + 1)) - set(tfs_docs[terms[idx + 1]]["rel_docs"]))
+            rel_docs_new = list(rel_songs - set(tfs_docs[terms[idx + 1]]["rel_docs"]))
 
             # As this represents only a weak search results, the term frequency is set to 0.5 as documents
             # that have true positives should be favored
@@ -97,12 +106,12 @@ def get_tfs_docs_bool_search(search_results, bool_vals, indexer):
     return tfs_docs
 
 
-def bool_search(search_results, indexer, bool_vals):
+def bool_search(search_results, bool_vals, rel_songs):
     """
     Executes a boolean search between relevant documents for all searched terms.
     :param search_results: Results of document and tfs for each individual search term (dict)
-    :param indexer: Class instance for the created index (Indexer)
     :param bool_vals: List of "&&", "&&--" or "||" or "||--" (list)
+    :param rel_songs: Relevant songs (list)
     :return: List of all doc_ids which are relevant for this boolean search (list)
     """
     terms = list(search_results.keys())
@@ -120,7 +129,7 @@ def bool_search(search_results, indexer, bool_vals):
             rel_docs = list(set(rel_docs + search_results[terms[idx + 1]]["rel_docs"]))
 
         elif bool_val == "||--":
-            rel_docs = list((set(range(1, indexer.total_num_docs + 1)) -
+            rel_docs = list((rel_songs -
                              set(search_results[terms[idx + 1]]["rel_docs"])).union(set(rel_docs)))
 
         else:
@@ -131,12 +140,13 @@ def bool_search(search_results, indexer, bool_vals):
     return rel_docs
 
 
-def simple_proximity_search(search_results, indexer, n=1, pos_asterisk=None, phrase=False):
+def simple_proximity_search(search_results, indexer, rel_songs, n=1, pos_asterisk=None, phrase=False):
     """
     Calculates if terms in query are in the same document with less or equal to n distance and return relevant doc_ids.
     Option to perform phrase search.
     :param search_results: Results of document and tfs for each individual search term (dict)
     :param indexer: Class instance for the created index (Indexer)
+    :param rel_songs: Relevant songs (list)
     :param n: allowed distance in one document (int)
     :param pos_asterisk: positions where the asterisks are located (list)
     :param phrase: whether or not the search is a phrase search and ordering matters (bool)
@@ -144,7 +154,7 @@ def simple_proximity_search(search_results, indexer, n=1, pos_asterisk=None, phr
     """
     # Performs a boolean search to get documents which contain both terms
     terms = list(search_results.keys())
-    rel_documents_all_terms = bool_search(search_results, indexer=indexer, bool_vals=["&&"] * (len(terms) - 1))
+    rel_documents_all_terms = bool_search(search_results, bool_vals=["&&"] * (len(terms) - 1), rel_songs=rel_songs)
 
     # if any(|pos_1 - pos_2|<= n) --> doc_id is relevant --> append it to returned final_rel_doc_ids list
     # Find potential candidates (differentiation important for multiple words in phrase/proximity search)
@@ -195,18 +205,19 @@ def simple_proximity_search(search_results, indexer, n=1, pos_asterisk=None, phr
     return final_rel_doc_ids, tfs_docs
 
 
-def simple_tfidf_search(terms, indexer):
+def simple_tfidf_search(terms, indexer, rel_songs):
     """
     Calculates the TF-IDF score for multiple terms and returns an ordered dict.
     :param terms: List of terms contained in search (list)
     :param indexer: Class instance for the created index (Indexer)
+    :param rel_songs: Relevant songs (list)
     :return: Descending sorted pseudo-dictionary with doc_id as key and TF-IDF as value (list)
     """
     doc_relevance = defaultdict(lambda:0)
-    total_num_docs = indexer.total_num_docs
+    total_num_docs = len(rel_songs)
 
     for t in terms:
-        tfs_docs = get_tfs_docs(t, indexer.index)
+        tfs_docs = get_tfs_docs(t, indexer.index, rel_songs)
         rel_docs = list(tfs_docs.keys())
         df = len(rel_docs)
 
@@ -223,17 +234,17 @@ def simple_tfidf_search(terms, indexer):
     sorted_relevance = sorted(sorted_relevance, key=lambda x: x[1], reverse=True)
     return sorted_relevance
 
-def calculate_tfidf(rel_docs, tfs_docs, indexer, logical_search):
+def calculate_tfidf(rel_docs, tfs_docs, logical_search, rel_songs):
     """
     Calculates the TF-IDF score for given search results for one search term
     :param rel_docs: List of relevant documents (list)
     :param tfs_docs: Term frequency in the relevant documents (list)
-    :param indexer: Class instance for the created index (Indexer)
     :param logical_search: Boolean value if the search is logical
+    :param rel_songs: Relevant songs (list)
     :return: Descending sorted dictionary with doc_id as key and TF-IDF as value (dict)
     """
     doc_relevance = {}
-    total_num_docs = indexer.total_num_docs
+    total_num_docs = len(rel_songs)
 
     # Split cases for boolean search and searches with only one query component
     if logical_search:
@@ -290,13 +301,14 @@ def calculate_tfidf(rel_docs, tfs_docs, indexer, logical_search):
     return sorted_relevance
 
 
-def execute_search(query, indexer, preprocessor):
+def execute_search(query, indexer, preprocessor, rel_songs):
     """
     Checks, which type of search has to be done.
     Executes the search and returns the resulting, relevant doc_ids and tfs for those
     :param query: The query which should be searched for (str)
     :param indexer: Class instance for the created index (Indexer)
     :param preprocessor: Preprocessor class instance (Preprocessor)
+    :param rel_songs: Relevant songs (list)
     :return: List from the matching function containing all relevant doc_ids, List of all tfs for relevant doc_ids
     """
     # compile search patterns to test for
@@ -323,10 +335,10 @@ def execute_search(query, indexer, preprocessor):
         for idx, term in enumerate(terms):
             key = term + "_" + str(idx)
             search_results[key]["rel_docs"], search_results[key]["tfs_docs"] = execute_search(term, indexer,
-                                                                                                preprocessor)
+                                                                                                preprocessor, rel_songs)
 
-        rel_docs = bool_search(search_results, indexer=indexer, bool_vals=type_of_bool_search)
-        tfs_docs = get_tfs_docs_bool_search(search_results, bool_vals=type_of_bool_search, indexer=indexer)
+        rel_docs = bool_search(search_results, bool_vals=type_of_bool_search, rel_songs=rel_songs)
+        tfs_docs = get_tfs_docs_bool_search(search_results, bool_vals=type_of_bool_search, rel_songs=rel_songs)
 
         return rel_docs, tfs_docs
 
@@ -338,10 +350,10 @@ def execute_search(query, indexer, preprocessor):
         search_results = defaultdict(create_default_dict_list)
         for idx, term in enumerate(terms):
             key = term + "_" + str(idx)
-            search_results[key]["rel_doc_pos"] = get_rel_doc_pos(preprocessor.preprocess(term)[0], indexer.index)
+            search_results[key]["rel_doc_pos"] = get_rel_doc_pos(preprocessor.preprocess(term)[0], indexer.index, rel_songs)
             search_results[key]["rel_docs"] = list(search_results[key]["rel_doc_pos"].keys())
 
-        rel_docs, tfs_docs = simple_proximity_search(search_results, indexer=indexer, n=n)
+        rel_docs, tfs_docs = simple_proximity_search(search_results, indexer=indexer, rel_songs=rel_songs, n=n)
 
         return rel_docs, tfs_docs
 
@@ -369,7 +381,7 @@ def execute_search(query, indexer, preprocessor):
         search_results = defaultdict(create_default_dict_list)
         for idx, term in enumerate(terms):
             key = term + "_" + str(idx)
-            search_results[key]["rel_doc_pos"] = get_rel_doc_pos(preprocessor.preprocess(term)[0], indexer.index)
+            search_results[key]["rel_doc_pos"] = get_rel_doc_pos(preprocessor.preprocess(term)[0], indexer.index, rel_songs)
             search_results[key]["rel_docs"] = list(search_results[key]["rel_doc_pos"].keys())
 
         if len(search_results.keys()) < 2:
@@ -382,22 +394,21 @@ def execute_search(query, indexer, preprocessor):
 
             return final_rel_doc_ids, tfs_docs
         else:
-            rel_docs, tfs_docs = simple_proximity_search(search_results, indexer=indexer, n=1, phrase=True, pos_asterisk=pos_asterisk)
+            rel_docs, tfs_docs = simple_proximity_search(search_results, indexer=indexer, rel_songs=rel_songs, n=1, phrase=True, pos_asterisk=pos_asterisk)
             return rel_docs, tfs_docs
 
     # if nothing else matches --> make a simple search
     else:
-        tfs_docs = get_tfs_docs(preprocessor.preprocess(query)[0], indexer.index)
+        tfs_docs = get_tfs_docs(preprocessor.preprocess(query)[0], indexer.index, rel_songs)
         results = list(tfs_docs.keys())
 
         return results, tfs_docs
 
-def get_pop_scores(SongModel, ArtistModel, song_ids, config):
+def get_pop_scores(SongModel, ArtistModel, song_ids):
     """
     :param SongModel 
     :param ArtistModel
     :param song_ids list of song ids
-    :param config current configuration
     :return list of artist popularity scores 
     """
     logging.info("Sending request to the DB")
@@ -411,7 +422,7 @@ def get_pop_scores(SongModel, ArtistModel, song_ids, config):
 
     return pop_scores_artist, pop_scores_songs
 
-def execute_queries_and_save_results(query, indexer, preprocessor, config, SongModel, ArtistModel,
+def execute_queries_and_save_results(query, indexer, preprocessor, config, SongModel, ArtistModel, rel_songs,
                                      query_num = None):
     """
     Function to execute search and return results
@@ -422,6 +433,7 @@ def execute_queries_and_save_results(query, indexer, preprocessor, config, SongM
     :param SongModel: Class instance for the database connection (SongModel)
     :param ArtistModel: Class instance for the database connection (ArtistModel)
     :param query_num: Number of query used for system evaluation (int)
+    :param rel_songs: Relevant songs (list)
     :return: results (list)
     """
 
@@ -444,16 +456,16 @@ def execute_queries_and_save_results(query, indexer, preprocessor, config, SongM
     # check if boolean search component is in query, then execute boolean search
     # else execute tfidf search
     if search_pattern.search(query) is not None:
-        rel_docs, tfs_docs = execute_search(query, indexer, preprocessor)
+        rel_docs, tfs_docs = execute_search(query, indexer, preprocessor, rel_songs)
         dt_string_START_RETRIEVAL = datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")
         logging.info(f'START date and time of TFIDF CALCULATION = {dt_string_START_RETRIEVAL}')
-        rel_docs_with_tfidf = calculate_tfidf(rel_docs, tfs_docs, indexer, logical_search)
+        rel_docs_with_tfidf = calculate_tfidf(rel_docs, tfs_docs, logical_search, rel_songs)
     else:
         terms = query.split()
         terms = [preprocessor.preprocess(term)[0] for term in terms if len(preprocessor.preprocess(term)) > 0]
         dt_string_START_RETRIEVAL = datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")
         logging.info(f'START date and time of TFIDF CALCULATION = {dt_string_START_RETRIEVAL}')
-        rel_docs_with_tfidf = simple_tfidf_search(terms, indexer)
+        rel_docs_with_tfidf = simple_tfidf_search(terms, indexer, rel_songs)
 
     if len(rel_docs_with_tfidf) > 0:
 
@@ -476,7 +488,7 @@ def execute_queries_and_save_results(query, indexer, preprocessor, config, SongM
             # Get popularity scores for rel_dc
             rel_docs_with_tfidf_scaled = rel_docs_with_tfidf_scaled[:config["retrieval"]["customized_ranking_result_limit"]]
             rel_docs = [x[0] for x in rel_docs_with_tfidf_scaled]
-            pop_scores_artist, pop_scores_songs = get_pop_scores(SongModel, ArtistModel, rel_docs, config)
+            pop_scores_artist, pop_scores_songs = get_pop_scores(SongModel, ArtistModel, rel_docs)
             if np.isnan(pop_scores_artist).sum() > 0:
                 logging.warning("WARNING: NA VALUES IN POPULARITY SCORE")
             logging.info("Popularity score retrieved from database")
