@@ -497,7 +497,7 @@ def execute_queries_and_save_results(query, indexer, preprocessor, config, SongM
             rel_docs_score = [x[1] for x in rel_docs_with_tfidf_scaled]
             rel_docs_score_cust = [x * config["retrieval"]["weight_artist_popularity"] +
                                    y * config["retrieval"]["weight_song_popularity"] +
-                                   round(y * (1-config["retrieval"]["weight_artist_popularity"]-config["retrieval"]["weight_song_popularity"]),4)
+                                   round(z * (1-config["retrieval"]["weight_artist_popularity"]-config["retrieval"]["weight_song_popularity"]),4)
                                    for x, y, z in zip(pop_scores_artist, pop_scores_songs, rel_docs_score)]
             
             # Overwrite old tfids scores with new scores
