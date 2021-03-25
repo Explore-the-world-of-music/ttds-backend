@@ -13,28 +13,13 @@ import pandas as pd
 import logging
 import copy
 
-# def find_docs_with_term(term, index):
-#     """
-#     Returns all doc_ids which contain the "term".
-#     :param term: The searched term (str)
-#     :param index: Index in which to search (dict)
-#     :return: list of relevant doc ids (list)
-#     """
-#     if term in index.keys():
-#         rel_doc_ids = list(index[term][0])
-#     else:
-#         rel_doc_ids = []
-
-#     return rel_doc_ids
-
-
 def get_rel_doc_pos(term, index, rel_songs):
     """
     Returns all relevant doc_positions of a term
     :param term: The searched term (str)
     :param index: Index in which to search (dict)
     :param rel_songs: Relevant songs (list)
-    :return: positions of term for related doc ids (list of lists)
+    :return: positions of term for related doc ids (dict)
     """
     if term in index.keys(): 
         rel_doc_pos = dict(zip(index[term][0], index[term][1]))
@@ -57,7 +42,6 @@ def get_tfs_docs(term, index, rel_songs):
     :return: term frequencies of term for related doc ids (dict)
     """
     if term in index.keys():
-        #tfs_docs = {index[term][0][i] : len(index[term][1][i]) for i in range(len(index[term][0])) if index[term][0][i] in rel_songs}
         tfs_docs = dict(zip(index[term][0], index[term][1]))
         for doc in tfs_docs.keys():
             tfs_docs[doc] = len(tfs_docs[doc])
@@ -179,7 +163,8 @@ def simple_proximity_search(search_results, indexer, rel_songs, n=1, pos_asteris
     :param n: allowed distance in one document (int)
     :param pos_asterisk: positions where the asterisks are located (list)
     :param phrase: whether or not the search is a phrase search and ordering matters (bool)
-    :return: List of all doc_ids which are relevant for proximity search (list)
+    :return: List of all relevant doc_ids (list), term frequencies for each doc (dict),
+    positions of terms in relevant docs (dict)
     """
     # Performs a boolean search to get documents which contain both terms
     terms = list(search_results.keys())
@@ -351,7 +336,8 @@ def execute_search(query, indexer, preprocessor, rel_songs):
     :param indexer: Class instance for the created index (Indexer)
     :param preprocessor: Preprocessor class instance (Preprocessor)
     :param rel_songs: Relevant songs (list)
-    :return: List from the matching function containing all relevant doc_ids, List of all tfs for relevant doc_ids
+    :return: List from the matching function containing all relevant doc_ids (list),
+    List of all tfs for relevant doc_ids (dict), Positions of terms within relevant docs (dict)
     """
     # compile search patterns to test for
     bool_pattern = re.compile(r"(&&--)|(\|\|--)|(&&)|(\|\|)")
@@ -450,10 +436,11 @@ def execute_search(query, indexer, preprocessor, rel_songs):
 
 def get_pop_scores(SongModel, ArtistModel, song_ids):
     """
+    Return popularity score for artists and songs to be used in customized ranking
     :param SongModel 
     :param ArtistModel
     :param song_ids list of song ids
-    :return list of artist popularity scores 
+    :return list of artist popularity scores, list of song popularity scores
     """
     logging.info("Sending request to the DB")
     artists = SongModel.query.yield_per(100).join(ArtistModel).with_entities(SongModel.id, ArtistModel.rating).filter(SongModel.id.in_(song_ids)).all()
@@ -476,8 +463,8 @@ def execute_queries_and_save_results(query, indexer, preprocessor, config, SongM
     :param config: Defined configuration settings (dict)
     :param SongModel: Class instance for the database connection (SongModel)
     :param ArtistModel: Class instance for the database connection (ArtistModel)
-    :param query_num: Number of query used for system evaluation (int)
     :param rel_songs: Relevant songs (list)
+    :param query_num: Number of query used for system evaluation (int)
     :return: results (list)
     """
 
@@ -568,7 +555,7 @@ def execute_queries_and_save_results(query, indexer, preprocessor, config, SongM
         if search_pattern.search(query) is not None:
             pos_docs_fin = defaultdict(list, dict())
             for doc in rel_docs_for_pos:
-                pos_docs_fin[doc] = sorted(pos_docs[doc], key=float)
+                pos_docs_fin[doc] = sorted(list(pos_docs[doc]), key=float)
         else:
             pos_docs_fin = defaultdict(list, dict())
             for term in terms:
