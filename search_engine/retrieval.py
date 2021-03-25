@@ -106,6 +106,34 @@ def get_tfs_docs_bool_search(search_results, bool_vals, rel_songs):
     return tfs_docs
 
 
+def get_pos_docs_bool_search(rel_docs, search_results, bool_vals):
+    """
+    Returns all term positions within relevant documents
+
+    :param: rel_docs: Relevant final documents
+    :param search_results: Results of document and tfs for each individual search term (dict)
+    :param bool_vals: List of "&&", "&&--" or "||" or "||--" (list)
+    :return: position of terms for relevant docs (dict)
+    """
+    terms = list(search_results.keys())
+    # Extract positions for the first term as basis
+    pos_docs = defaultdict(create_default_dict_list)
+    for doc in rel_docs:
+        if doc in search_results[terms[0]]["pos_docs"].keys():
+            pos_docs[doc] = search_results[terms[0]]["pos_docs"][doc]
+        else:
+            pos_docs[doc] = list()
+
+    for idx, bool_val in enumerate(bool_vals):
+
+        if bool_val in ["&&", "||", "||--"]:
+            for doc in rel_docs:
+                if doc in search_results[terms[idx+1]]["pos_docs"].keys():
+                    pos_docs[doc] = pos_docs[doc] + search_results[terms[idx+1]]["pos_docs"][doc]
+
+    return pos_docs
+
+
 def bool_search(search_results, bool_vals, rel_songs):
     """
     Executes a boolean search between relevant documents for all searched terms.
@@ -159,6 +187,7 @@ def simple_proximity_search(search_results, indexer, rel_songs, n=1, pos_asteris
     # if any(|pos_1 - pos_2|<= n) --> doc_id is relevant --> append it to returned final_rel_doc_ids list
     # Find potential candidates (differentiation important for multiple words in phrase/proximity search)
     final_rel_doc_ids = list()
+    pos_docs = dict()
     for doc_id in rel_documents_all_terms:
         dict_candi = defaultdict(list)
         for idx, term in enumerate(terms[:-1]):
@@ -180,6 +209,11 @@ def simple_proximity_search(search_results, indexer, rel_songs, n=1, pos_asteris
             # If only two terms were compared, take all results
             for _ in dict_candi[0]:
                 final_rel_doc_ids.append(doc_id)
+            if len(dict_candi[0]) > 0:
+                list_pos_docs = list()
+                for idx in np.arange(len(dict_candi[0])):
+                    list_pos_docs = list_pos_docs + list(dict_candi[0][idx])
+                pos_docs[doc_id] = list(set(list_pos_docs))
         else:
             # For multiple terms delete all positions which are true across terms
             # Finally take the minimum true positions per term as the number for which the whole
@@ -197,12 +231,19 @@ def simple_proximity_search(search_results, indexer, rel_songs, n=1, pos_asteris
                 for i in np.arange(max_cand):
                     final_rel_doc_ids.append(doc_id)
 
+                pos_docs_doc = list()
+                for key in dict_candi_fin.keys():
+                    for idx in np.arange(len(dict_candi_fin[key])):
+                        pos_docs_doc = pos_docs_doc + list(dict_candi_fin[key][idx])
+                pos_docs_doc = list(set(pos_docs_doc))
+                pos_docs[doc_id] = pos_docs_doc
+
     # Convert results to appropriate output format
     tfs_docs = dict(Counter(final_rel_doc_ids))
     tfs_docs = defaultdict(int, tfs_docs)
     final_rel_doc_ids = list(set(final_rel_doc_ids))
 
-    return final_rel_doc_ids, tfs_docs
+    return final_rel_doc_ids, tfs_docs, pos_docs
 
 
 def simple_tfidf_search(terms, indexer, rel_songs):
@@ -334,13 +375,14 @@ def execute_search(query, indexer, preprocessor, rel_songs):
         search_results = defaultdict(create_default_dict_list)
         for idx, term in enumerate(terms):
             key = term + "_" + str(idx)
-            search_results[key]["rel_docs"], search_results[key]["tfs_docs"] = execute_search(term, indexer,
-                                                                                                preprocessor, rel_songs)
+            search_results[key]["rel_docs"], search_results[key]["tfs_docs"], search_results[key]["pos_docs"] = \
+                execute_search(term, indexer, preprocessor, rel_songs)
 
         rel_docs = bool_search(search_results, bool_vals=type_of_bool_search, rel_songs=rel_songs)
         tfs_docs = get_tfs_docs_bool_search(search_results, bool_vals=type_of_bool_search, rel_songs=rel_songs)
+        pos_docs = get_pos_docs_bool_search(rel_docs, search_results, bool_vals=type_of_bool_search)
 
-        return rel_docs, tfs_docs
+        return rel_docs, tfs_docs, pos_docs
 
     # check if proximity search
     elif prox_pattern.search(query) is not None:
@@ -353,9 +395,9 @@ def execute_search(query, indexer, preprocessor, rel_songs):
             search_results[key]["rel_doc_pos"] = get_rel_doc_pos(preprocessor.preprocess(term)[0], indexer.index, rel_songs)
             search_results[key]["rel_docs"] = list(search_results[key]["rel_doc_pos"].keys())
 
-        rel_docs, tfs_docs = simple_proximity_search(search_results, indexer=indexer, rel_songs=rel_songs, n=n)
+        rel_docs, tfs_docs, pos_docs = simple_proximity_search(search_results, indexer=indexer, rel_songs=rel_songs, n=n)
 
-        return rel_docs, tfs_docs
+        return rel_docs, tfs_docs, pos_docs
 
     # check if phrase search --> same as proximity search with n = 1
     elif phra_pattern.search(query) is not None:
@@ -392,17 +434,18 @@ def execute_search(query, indexer, preprocessor, rel_songs):
             for key2 in tfs_docs.keys():
                 tfs_docs[key2] = len(search_results[key]["rel_doc_pos"][key2])
 
-            return final_rel_doc_ids, tfs_docs
+            return final_rel_doc_ids, tfs_docs, search_results[key]["rel_doc_pos"]
         else:
-            rel_docs, tfs_docs = simple_proximity_search(search_results, indexer=indexer, rel_songs=rel_songs, n=1, phrase=True, pos_asterisk=pos_asterisk)
-            return rel_docs, tfs_docs
+            rel_docs, tfs_docs, pos_docs = simple_proximity_search(search_results, indexer=indexer, rel_songs=rel_songs, n=1, phrase=True, pos_asterisk=pos_asterisk)
+            return rel_docs, tfs_docs, pos_docs
 
     # if nothing else matches --> make a simple search
     else:
         tfs_docs = get_tfs_docs(preprocessor.preprocess(query)[0], indexer.index, rel_songs)
         results = list(tfs_docs.keys())
+        pos_docs = get_rel_doc_pos(preprocessor.preprocess(query)[0], indexer.index)
 
-        return results, tfs_docs
+        return results, tfs_docs, pos_docs
 
 def get_pop_scores(SongModel, ArtistModel, song_ids):
     """
@@ -456,7 +499,7 @@ def execute_queries_and_save_results(query, indexer, preprocessor, config, SongM
     # check if boolean search component is in query, then execute boolean search
     # else execute tfidf search
     if search_pattern.search(query) is not None:
-        rel_docs, tfs_docs = execute_search(query, indexer, preprocessor, rel_songs)
+        rel_docs, tfs_docs, pos_docs = execute_search(query, indexer, preprocessor, rel_songs)
         dt_string_START_RETRIEVAL = datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")
         logging.info(f'START date and time of TFIDF CALCULATION = {dt_string_START_RETRIEVAL}')
         rel_docs_with_tfidf = calculate_tfidf(rel_docs, tfs_docs, logical_search, rel_songs)
@@ -517,6 +560,20 @@ def execute_queries_and_save_results(query, indexer, preprocessor, config, SongM
         if len(rel_docs_with_tfidf_scaled) > config["retrieval"]["number_ranked_documents"]:
             rel_docs_with_tfidf_scaled = rel_docs_with_tfidf_scaled[:config["retrieval"]["number_ranked_documents"]]
 
+        # Finalize positions return to show in front end
+        rel_docs_for_pos = [x[0] for x in rel_docs_with_tfidf_scaled]
+        if search_pattern.search(query) is not None:
+            pos_docs_fin = defaultdict(list, dict())
+            for doc in rel_docs_for_pos:
+                pos_docs_fin[doc] = sorted(pos_docs[doc], key=float)
+        else:
+            pos_docs_fin = defaultdict(list, dict())
+            for doc in rel_docs_for_pos:
+                for term in terms:
+                    if doc in indexer.index[term].keys():
+                        pos_docs_fin[doc] = pos_docs_fin[doc] + indexer.index[term][doc]
+                        pos_docs_fin[doc] = sorted(pos_docs_fin[doc], key=float)
+
         if config["retrieval"]["result_checking"]:
             # Save results on local disk
             ts = time.time()
@@ -546,13 +603,14 @@ def execute_queries_and_save_results(query, indexer, preprocessor, config, SongM
         dt_string_END = datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")
         logging.info(f'END date and time of SEARCH ENGINE = {dt_string_END}')
 
-        return results, results_frame
+        return results, results_frame, pos_docs_fin
 
     else:
         results = []
         results_frame = pd.DataFrame()
+        pos_docs_fin = dict()
 
         dt_string_END = datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")
         logging.info(f'END date and time of SEARCH ENGINE = {dt_string_END}')
 
-        return results, results_frame
+        return results, results_frame, pos_docs_fin

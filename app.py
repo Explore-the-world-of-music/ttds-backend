@@ -136,7 +136,7 @@ def handle_songs():
         queries_num, queries = load_queries('system_evaluation/queries.system_evaluation.txt')
         results_data_frame = pd.DataFrame()
         for query_num, query in zip(queries_num, queries):
-            _, results_data_frame_tmp = execute_queries_and_save_results(query, indexer=indexer,preprocessor=preprocessor,
+            _, results_data_frame_tmp, _ = execute_queries_and_save_results(query, indexer=indexer,preprocessor=preprocessor,
                                                                          config=config, SongModel=SongModel,
                                                                          ArtistModel = ArtistModel,
                                                                          query_num=query_num, rel_docs = set(range(1, indexer.total_num_docs+1)))
@@ -206,7 +206,7 @@ def handle_songs():
     
     # Perform search to be shown in front end
     logging.info("Starting index search")
-    db_results, _ = execute_queries_and_save_results(query, indexer=indexer,preprocessor=preprocessor,
+    db_results, _, pos_docs_fin = execute_queries_and_save_results(query, indexer=indexer,preprocessor=preprocessor,
                                                      config=config, SongModel=SongModel, ArtistModel = ArtistModel, rel_songs= filtered_songs)
     logging.info("Index search complete")
     if db_results == None:
