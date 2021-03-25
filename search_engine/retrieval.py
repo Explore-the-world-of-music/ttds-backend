@@ -38,7 +38,7 @@ def get_rel_doc_pos(term, index, rel_songs):
     """
     if term in index.keys(): 
         rel_doc_pos = dict(zip(index[term][0], index[term][1]))
-        keys = set(rel_doc_pos.keys()) -rel_songs
+        keys = set(rel_doc_pos.keys()) - rel_songs
         for key in keys:
             rel_doc_pos.pop(key, None)
         rel_doc_pos = defaultdict(int, rel_doc_pos)
@@ -61,7 +61,7 @@ def get_tfs_docs(term, index, rel_songs):
         tfs_docs = dict(zip(index[term][0], index[term][1]))
         for doc in tfs_docs.keys():
             tfs_docs[doc] = len(tfs_docs[doc])
-        keys = set(tfs_docs.keys()) -rel_songs
+        keys = set(tfs_docs.keys()) - rel_songs
         for key in keys:
             tfs_docs.pop(key, None)
         tfs_docs = defaultdict(int, tfs_docs)
@@ -116,11 +116,12 @@ def get_pos_docs_bool_search(rel_docs, search_results, bool_vals):
     :return: position of terms for relevant docs (dict)
     """
     terms = list(search_results.keys())
+
     # Extract positions for the first term as basis
     pos_docs = defaultdict(create_default_dict_list)
     for doc in rel_docs:
         if doc in search_results[terms[0]]["pos_docs"].keys():
-            pos_docs[doc] = search_results[terms[0]]["pos_docs"][doc]
+            pos_docs[doc] = list(search_results[terms[0]]["pos_docs"][doc])
         else:
             pos_docs[doc] = list()
 
@@ -129,7 +130,7 @@ def get_pos_docs_bool_search(rel_docs, search_results, bool_vals):
         if bool_val in ["&&", "||", "||--"]:
             for doc in rel_docs:
                 if doc in search_results[terms[idx+1]]["pos_docs"].keys():
-                    pos_docs[doc] = pos_docs[doc] + search_results[terms[idx+1]]["pos_docs"][doc]
+                    pos_docs[doc] = pos_docs[doc] + list(search_results[terms[idx+1]]["pos_docs"][doc])
 
     return pos_docs
 
@@ -443,7 +444,7 @@ def execute_search(query, indexer, preprocessor, rel_songs):
     else:
         tfs_docs = get_tfs_docs(preprocessor.preprocess(query)[0], indexer.index, rel_songs)
         results = list(tfs_docs.keys())
-        pos_docs = get_rel_doc_pos(preprocessor.preprocess(query)[0], indexer.index)
+        pos_docs = get_rel_doc_pos(preprocessor.preprocess(query)[0], indexer.index, rel_songs)
 
         return results, tfs_docs, pos_docs
 
@@ -561,6 +562,8 @@ def execute_queries_and_save_results(query, indexer, preprocessor, config, SongM
             rel_docs_with_tfidf_scaled = rel_docs_with_tfidf_scaled[:config["retrieval"]["number_ranked_documents"]]
 
         # Finalize positions return to show in front end
+        dt_string_START_POSITION = datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+        logging.info(f'START date and time of POSITIONS OF RESULTS = {dt_string_START_POSITION}')
         rel_docs_for_pos = [x[0] for x in rel_docs_with_tfidf_scaled]
         if search_pattern.search(query) is not None:
             pos_docs_fin = defaultdict(list, dict())
@@ -568,10 +571,11 @@ def execute_queries_and_save_results(query, indexer, preprocessor, config, SongM
                 pos_docs_fin[doc] = sorted(pos_docs[doc], key=float)
         else:
             pos_docs_fin = defaultdict(list, dict())
-            for doc in rel_docs_for_pos:
-                for term in terms:
-                    if doc in indexer.index[term].keys():
-                        pos_docs_fin[doc] = pos_docs_fin[doc] + indexer.index[term][doc]
+            for term in terms:
+                dict_tmp = dict(zip(indexer.index[term][0], indexer.index[term][1]))
+                for doc in rel_docs_for_pos:
+                    if doc in dict_tmp.keys():
+                        pos_docs_fin[doc] = pos_docs_fin[doc] + list(dict_tmp[doc])
                         pos_docs_fin[doc] = sorted(pos_docs_fin[doc], key=float)
 
         if config["retrieval"]["result_checking"]:
