@@ -2,6 +2,9 @@ import logging
 import os
 import pickle
 from datetime import datetime
+import re
+import collections
+from numpy.lib.utils import _split_line
 
 import pandas as pd
 from flask import Flask, jsonify, request
@@ -136,7 +139,7 @@ def handle_songs():
         queries_num, queries = load_queries('system_evaluation/queries.system_evaluation.txt')
         results_data_frame = pd.DataFrame()
         for query_num, query in zip(queries_num, queries):
-            _, results_data_frame_tmp = execute_queries_and_save_results(query, indexer=indexer,preprocessor=preprocessor,
+            _, results_data_frame_tmp, _ = execute_queries_and_save_results(query, indexer=indexer,preprocessor=preprocessor,
                                                                          config=config, SongModel=SongModel,
                                                                          ArtistModel = ArtistModel,
                                                                          query_num=query_num, rel_docs = set(range(1, indexer.total_num_docs+1)))
@@ -209,7 +212,10 @@ def handle_songs():
     db_results, _ = execute_queries_and_save_results(query, indexer=indexer,preprocessor=preprocessor,
                                                      config=config, SongModel=SongModel, ArtistModel = ArtistModel, rel_songs= filtered_songs)
     logging.info("Index search complete")
-    if db_results == None:
+    if len(db_results) == 0 and query[0] == "\"" and query[-1] == "\"" and len(query) > 2 and "\"" not in query[1:-1]:
+        db_results, _ = execute_queries_and_save_results(query[1:-1], indexer=indexer,preprocessor=preprocessor,
+                                                     config=config, SongModel=SongModel, ArtistModel = ArtistModel, rel_songs= filtered_songs)
+    if len(db_results) == 0:
         return {"songs": []}
 
     result_dict = {id: score for id, score in db_results} # converting tuples into a dictionary
@@ -229,20 +235,44 @@ def handle_songs():
             "released": song.released,
             "genre": song.genre
         } for song in songs]
-
-    # Extra preporcessing before lyrics are returned:
-    # 1. Replace all \\n with \n
-    # 2. If there is a split between 4 and 10 lines, use that
-    # 3. Otherwise, just return the first 8 lines
-    # TODO: add different method for phrase search.
+    query_set = set(preprocessor.preprocess(re.sub('|,\)\(&-"#', '', query).replace("*", "")))
+    if "" in query_set:
+        query_set.remove("")
+    extras = set()
+    for term in query_set:
+        extras.update(preprocessor.preprocess(preprocessor.replace_replacement_patterns(term)))
+    query_set.update(extras)
+    logging.info(query_set)
     for song in results:
+        line_matches = []
+        best_line = 0
+        best_line_value = 0
+        new_lyrics = []
         song["lyrics"] = song["lyrics"].replace("\\n", "\n")
-        split_lyrics = song["lyrics"].split("\n")
-        if not config["retrieval"]["result_checking"]:
-            if "" in split_lyrics and 4 <= split_lyrics.index("") <= 10:
-                song["lyrics"] = "\n".join(split_lyrics[:split_lyrics.index("")])
-            else:
-                song["lyrics"] = "\n".join(split_lyrics[:8])
+        for lyric_line in song["lyrics"].split("\n"):
+            line_matches.append(0)
+            if lyric_line != "":
+                for word in lyric_line.split(" "):
+                    if len(preprocessor.preprocess(word)) > 0 and ((preprocessor.preprocess(word)[0] in query_set) or set(preprocessor.preprocess(preprocessor.replace_replacement_patterns(word))).issubset(query_set)):
+                        new_lyrics.append(f"<b>{word}</b>")
+                        line_matches[-1] += 1
+                    else:
+                        new_lyrics.append(word)
+                if line_matches[-1] > best_line_value:
+                    best_line = len(line_matches)-1
+                    best_line_value = line_matches[-1]
+            new_lyrics.append("\n")
+        new_lyrics = " ".join(new_lyrics)
+        logging.info(line_matches)
+        logging.info(new_lyrics)
+        logging.info("done")
+
+        split_lyrics = new_lyrics.split("\n")
+        limit = 9
+        if "" in split_lyrics[best_line:best_line+limit] and 4 <= split_lyrics[best_line:best_line+limit].index("") <= 10:
+            song["lyrics"] = "\n".join(split_lyrics[best_line:best_line + split_lyrics[best_line:best_line+limit].index("") + 1])
+        else:
+            song["lyrics"] = "\n".join(split_lyrics[best_line:best_line+limit])
 
     # sort results based on their score
     results.sort(key= lambda x: result_dict[x["id"]], reverse=True)
