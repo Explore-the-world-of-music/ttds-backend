@@ -27,7 +27,7 @@ app = Flask(__name__)
 CORS(app)
 
 # if enabled, outputs all sql queries to the console
-app.config["SQLALCHEMY_ECHO"] = True 
+#app.config["SQLALCHEMY_ECHO"] = True 
 # uncomment these 2 lines to enable profiling
 # app.config['PROFILE'] = True
 # app.wsgi_app = ProfilerMiddleware(app.wsgi_app, restrictions=[30])
