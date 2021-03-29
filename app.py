@@ -230,19 +230,21 @@ def handle_songs():
             "artist": song.artist.name,
             "lyrics": song.lyrics,
             "album": song.album,
-            "image": song.artist.image,
+            "image": song.album_image if song.album_image != None else song.artist.image,
             "rating": song.rating,
             "released": song.released,
             "genre": song.genre
         } for song in songs]
     query_set = set(preprocessor.preprocess(re.sub('|,\)\(&-"#', '', query).replace("*", "")))
+
     if "" in query_set:
         query_set.remove("")
     extras = set()
+
     for term in query_set:
         extras.update(preprocessor.preprocess(preprocessor.replace_replacement_patterns(term)))
     query_set.update(extras)
-    logging.info(query_set)
+
     for song in results:
         line_matches = []
         best_line = 0
@@ -263,9 +265,6 @@ def handle_songs():
                     best_line_value = line_matches[-1]
             new_lyrics.append("\n")
         new_lyrics = " ".join(new_lyrics)
-        logging.info(line_matches)
-        logging.info(new_lyrics)
-        logging.info("done")
 
         split_lyrics = new_lyrics.split("\n")
         limit = 9
@@ -329,7 +328,7 @@ def handle_lyrics():
     """
     id = request.args.get("id", "")
 
-    result = SongModel.query.filter(SongModel.id == id).scalar()
+    result = SongModel.query.join(ArtistModel).filter(SongModel.id == id).scalar()
     
     results = {
             "id": result.id,
@@ -337,7 +336,7 @@ def handle_lyrics():
             "artist": result.artist.name,
             "lyrics": result.lyrics,
             "album": result.album,
-            "image": result.artist.image,
+            "image": result.album_image if result.album_image != None else result.artist.image,
             "rating": result.rating,
             "released": result.released,
             "genre": result.genre,
@@ -357,7 +356,7 @@ def handle_lyrics():
         "name": r.name,
         "artist": r.artist.name,
         "album": r.album,
-        "image": r.artist.image,
+        "image": r.album_image if r.album_image != None else r.artist.image,
     } for r in recom_songs]
 
     results["recommendations"] = recom_list

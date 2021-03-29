@@ -19,6 +19,7 @@ class SongModel(db.Model):
     bpm = db.Column(db.Integer())
     key = db.Column(db.Integer())
     topic_id = db.Column(db.Integer())
+    album_image = db.Column(db.Text())
     rec1 = db.Column(db.Integer())
     rec2 = db.Column(db.Integer())
     rec3 = db.Column(db.Integer())
